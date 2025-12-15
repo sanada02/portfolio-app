@@ -7,8 +7,9 @@ import { getTagColor } from '../utils/tags';
 
 export default function AssetChart({ portfolio, sellHistory = [], exchangeRate }) {
   const [viewMode, setViewMode] = useState('type'); // 'type', 'asset', 'tag'
+  const [sortOrder, setSortOrder] = useState('desc'); // 'desc' or 'asc'
 
-  // 種類別データ（多い順）- メモ化
+  // 種類別データ（並び替え可能）- メモ化
   const typeChartData = useMemo(() => {
     const data = portfolio.reduce((acc, asset) => {
       const value = calculateAssetValue(asset, sellHistory, exchangeRate);
@@ -30,10 +31,12 @@ export default function AssetChart({ portfolio, sellHistory = [], exchangeRate }
       return acc;
     }, []);
     
-    return data.sort((a, b) => b.value - a.value);
-  }, [portfolio, sellHistory, exchangeRate]);
+    return sortOrder === 'desc' 
+      ? data.sort((a, b) => b.value - a.value)
+      : data.sort((a, b) => a.value - b.value);
+  }, [portfolio, sellHistory, exchangeRate, sortOrder]);
 
-  // 銘柄別データ（多い順、上位10件 + その他）- メモ化
+  // 銘柄別データ（並び替え可能、上位10件 + その他）- メモ化
   const assetChartData = useMemo(() => {
     const assetMap = new Map();
     
@@ -59,7 +62,7 @@ export default function AssetChart({ portfolio, sellHistory = [], exchangeRate }
     });
     
     const sortedAssets = Array.from(assetMap.values())
-      .sort((a, b) => b.value - a.value);
+      .sort((a, b) => sortOrder === 'desc' ? b.value - a.value : a.value - b.value);
     
     if (sortedAssets.length <= 10) {
       return sortedAssets;
@@ -69,9 +72,9 @@ export default function AssetChart({ portfolio, sellHistory = [], exchangeRate }
     const othersValue = sortedAssets.slice(10).reduce((sum, item) => sum + item.value, 0);
     
     return [...top10, { name: 'その他', value: othersValue, id: 'others' }];
-  }, [portfolio, sellHistory, exchangeRate]);
+  }, [portfolio, sellHistory, exchangeRate, sortOrder]);
 
-  // タグ別データ（多い順）- メモ化
+  // タグ別データ（並び替え可能）- メモ化
   const tagChartData = useMemo(() => {
     const tagMap = new Map();
     
@@ -96,8 +99,8 @@ export default function AssetChart({ portfolio, sellHistory = [], exchangeRate }
     
     return Array.from(tagMap.entries())
       .map(([name, value]) => ({ name, value, id: name }))
-      .sort((a, b) => b.value - a.value);
-  }, [portfolio, sellHistory, exchangeRate]);
+      .sort((a, b) => sortOrder === 'desc' ? b.value - a.value : a.value - b.value);
+  }, [portfolio, sellHistory, exchangeRate, sortOrder]);
 
   // 現在のデータを取得
   const getCurrentData = () => {
@@ -148,24 +151,33 @@ export default function AssetChart({ portfolio, sellHistory = [], exchangeRate }
     <div className="section">
       <div className="chart-header">
         <h2>資産配分</h2>
-        <div className="chart-view-selector">
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div className="chart-view-selector">
+            <button
+              className={`btn-view ${viewMode === 'type' ? 'active' : ''}`}
+              onClick={() => setViewMode('type')}
+            >
+              種類別
+            </button>
+            <button
+              className={`btn-view ${viewMode === 'asset' ? 'active' : ''}`}
+              onClick={() => setViewMode('asset')}
+            >
+              銘柄別
+            </button>
+            <button
+              className={`btn-view ${viewMode === 'tag' ? 'active' : ''}`}
+              onClick={() => setViewMode('tag')}
+            >
+              タグ別
+            </button>
+          </div>
           <button
-            className={`btn-view ${viewMode === 'type' ? 'active' : ''}`}
-            onClick={() => setViewMode('type')}
+            className="btn-secondary"
+            onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')}
+            style={{ padding: '0.5rem 1rem', fontSize: '0.875rem' }}
           >
-            種類別
-          </button>
-          <button
-            className={`btn-view ${viewMode === 'asset' ? 'active' : ''}`}
-            onClick={() => setViewMode('asset')}
-          >
-            銘柄別
-          </button>
-          <button
-            className={`btn-view ${viewMode === 'tag' ? 'active' : ''}`}
-            onClick={() => setViewMode('tag')}
-          >
-            タグ別
+            {sortOrder === 'desc' ? '↓ 多い順' : '↑ 少ない順'}
           </button>
         </div>
       </div>

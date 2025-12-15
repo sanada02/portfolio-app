@@ -227,19 +227,6 @@ body {
   color: #374151;
 }
 
-/* グリッドレイアウト - 資産配分のみを左に配置、保有銘柄は下に全幅 */
-.content-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 2rem;
-}
-
-@media (min-width: 1024px) {
-  .content-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
 .empty-message {
   text-align: center;
   color: #9ca3af;
@@ -250,8 +237,8 @@ body {
 /* サマリーカード */
 .summary-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.25rem;
   margin-bottom: 2rem;
 }
 
@@ -260,25 +247,30 @@ body {
   border-radius: 12px;
   padding: 1.5rem;
   box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-  transition: transform 0.2s;
+  transition: all 0.3s ease;
+  border: 1px solid #e5e7eb;
 }
 
 .summary-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  transform: translateY(-4px);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.12);
 }
 
 .summary-card h3 {
   font-size: 0.875rem;
   color: #6b7280;
   font-weight: 600;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .summary-card .value {
-  font-size: 1.875rem;
+  font-size: 2rem;
   font-weight: 700;
   color: #1f2937;
+  line-height: 1.2;
+  margin-bottom: 0.5rem;
 }
 
 .summary-card .value.positive {
@@ -292,25 +284,29 @@ body {
 .summary-card .sub-value {
   font-size: 0.875rem;
   color: #6b7280;
-  margin-top: 0.25rem;
+  font-weight: 500;
+}
+
+/* トレンドチャート */
+.trend-chart {
+  margin-bottom: 2rem;
 }
 
 /* テーブル */
+.portfolio-table-container {
+  width: 100%;
+  overflow-x: auto;
+}
+
 .portfolio-table {
   width: 100%;
   border-collapse: collapse;
-  overflow-x: auto;
-  display: block;
-}
-
-.portfolio-table table {
-  width: 100%;
-  min-width: 800px;
+  min-width: 1000px;
 }
 
 .portfolio-table th,
 .portfolio-table td {
-  padding: 1rem;
+  padding: 1rem 0.75rem;
   text-align: left;
   border-bottom: 1px solid #e5e7eb;
 }
@@ -322,6 +318,7 @@ body {
   font-size: 0.875rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  white-space: nowrap;
 }
 
 .portfolio-table td {
@@ -337,9 +334,43 @@ body {
   background-color: #f9fafb;
 }
 
+.portfolio-table .asset-name {
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.portfolio-table .asset-type {
+  display: inline-block;
+  padding: 0.25rem 0.625rem;
+  background-color: #f3f4f6;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #6b7280;
+  margin-top: 0.25rem;
+}
+
+.portfolio-table .asset-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: 0.5rem;
+}
+
+.portfolio-table .tag-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.625rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: white;
+}
+
 .portfolio-table .actions {
   display: flex;
   gap: 0.5rem;
+  justify-content: flex-end;
 }
 
 .portfolio-table .actions button {
@@ -355,6 +386,7 @@ body {
 
 .portfolio-table .actions button:hover {
   transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
 }
 
 .portfolio-table .btn-edit {
@@ -392,6 +424,10 @@ body {
 .negative {
   color: #ef4444;
   font-weight: 600;
+}
+
+.text-right {
+  text-align: right;
 }
 
 /* 通知 */
@@ -659,19 +695,6 @@ body {
   background-color: white;
 }
 
-.tag-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.25rem 0.75rem;
-  border-radius: 12px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: white;
-  margin-right: 0.25rem;
-  margin-bottom: 0.25rem;
-}
-
 /* タグ管理モーダル */
 .tag-management-list {
   display: flex;
@@ -746,21 +769,6 @@ body {
   color: #1f2937;
 }
 
-/* アニメーション */
-.spinning {
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-/* トレンドチャート */
-.trend-chart {
-  margin-bottom: 2rem;
-}
-
 /* 設定モーダル */
 .settings-section {
   margin-bottom: 2rem;
@@ -788,12 +796,23 @@ body {
   font-size: 0.875rem;
   color: #6b7280;
   margin-bottom: 1rem;
+  border: 1px solid #e5e7eb;
 }
 
 .settings-actions {
   display: flex;
   gap: 0.75rem;
   flex-wrap: wrap;
+}
+
+/* アニメーション */
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 /* レスポンシブ */
@@ -820,8 +839,9 @@ body {
     grid-template-columns: 1fr;
   }
   
-  .portfolio-table {
-    font-size: 0.875rem;
+  .portfolio-table-container {
+    margin: 0 -1.5rem;
+    padding: 0 1.5rem;
   }
   
   .portfolio-table th,
@@ -842,5 +862,9 @@ body {
   .btn-view {
     font-size: 0.75rem;
     padding: 0.375rem 0.75rem;
+  }
+  
+  .summary-card .value {
+    font-size: 1.5rem;
   }
 }
