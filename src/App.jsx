@@ -1,4 +1,4 @@
-// src/App.jsx (トースト通知 + UI改善版)
+// src/App.jsx (同一銘柄統合 + 売却バグ修正版)
 import React, { useState, useEffect } from 'react';
 import { loadPortfolio, savePortfolio, getSellHistory } from './utils/storage';
 import { updateAllPrices, rebuildAllHistory, regenerateDailySnapshots } from './utils/priceAPI';
@@ -73,20 +73,18 @@ function App() {
     }
   };
 
+  // 🔥 修正: 売却処理（portfolio.quantityは変更せず、売却履歴のみ使用）
   const handleSellAsset = (soldAsset) => {
-    const updatedPortfolio = portfolio.map(asset => {
-      if (asset.id === soldAsset.id) {
-        return {
-          ...asset,
-          quantity: asset.quantity - soldAsset.soldQuantity
-        };
-      }
-      return asset;
-    }).filter(asset => asset.quantity > 0);
+    // portfolioのquantityは変更しない
+    // 売却履歴はSellAssetModal内で既にaddSellRecordで保存済み
+    // getActivePortfolioで売却履歴を参照してactiveQuantityを計算する
     
-    setPortfolio(updatedPortfolio);
-    savePortfolio(updatedPortfolio);
+    // ポートフォリオは変更不要だが、UIを更新するためにステートを更新
+    setPortfolio([...portfolio]);
+    
+    // スナップショットを再読み込み
     loadSnapshots();
+    
     addNotification('資産を売却しました', 'success');
   };
 
@@ -173,16 +171,68 @@ function App() {
     setIsDetailModalOpen(true);
   };
 
-  const getActivePortfolio = () => {
+  // 🔥 修正: 同一銘柄を統合して表示
+  const getConsolidatedPortfolio = () => {
     const sellHistory = getSellHistory();
-    
-    return portfolio.map(asset => {
-      const soldQuantity = sellHistory
-        .filter(record => record.originalAssetId === asset.id)
-        .reduce((sum, record) => sum + record.quantity, 0);
-      
+    const consolidated = {};
+
+    portfolio.forEach(asset => {
+      // 銘柄の識別キー（銘柄名を使用）
+      const key = asset.name;
+
+      if (consolidated[key]) {
+        // 既存の銘柄に追加
+        const existing = consolidated[key];
+        
+        // 数量を加算
+        existing.originalQuantity += asset.quantity;
+        
+        // 加重平均で取得単価を計算
+        const totalCost = (existing.purchasePrice * existing.quantity) + (asset.purchasePrice * asset.quantity);
+        const totalQuantity = existing.quantity + asset.quantity;
+        existing.purchasePrice = totalCost / totalQuantity;
+        existing.quantity = totalQuantity;
+        
+        // 購入日は最も古い日付を使用
+        if (new Date(asset.purchaseDate) < new Date(existing.purchaseDate)) {
+          existing.purchaseDate = asset.purchaseDate;
+        }
+        
+        // IDリストに追加（売却履歴の取得に使用）
+        existing.assetIds.push(asset.id);
+        
+        // タグをマージ
+        if (asset.tags) {
+          existing.tags = [...new Set([...(existing.tags || []), ...asset.tags])];
+        }
+        
+        // 現在価格は最新のものを使用
+        if (asset.currentPrice) {
+          existing.currentPrice = asset.currentPrice;
+        }
+      } else {
+        // 新規銘柄
+        consolidated[key] = {
+          ...asset,
+          assetIds: [asset.id], // 元のIDのリスト
+          originalQuantity: asset.quantity, // 元の購入数量
+          isConsolidated: true
+        };
+      }
+    });
+
+    // 売却数量を計算
+    return Object.values(consolidated).map(asset => {
+      // この銘柄の全IDの売却履歴を取得
+      const soldQuantity = asset.assetIds.reduce((sum, id) => {
+        const sold = sellHistory
+          .filter(record => record.originalAssetId === id)
+          .reduce((total, record) => total + record.quantity, 0);
+        return sum + sold;
+      }, 0);
+
       const activeQuantity = asset.quantity - soldQuantity;
-      
+
       return {
         ...asset,
         activeQuantity,
@@ -192,7 +242,7 @@ function App() {
     }).filter(asset => asset.activeQuantity > 0);
   };
 
-  const activePortfolio = getActivePortfolio();
+  const activePortfolio = getConsolidatedPortfolio();
 
   const getTagAnalysis = () => {
     const tagTotals = {};

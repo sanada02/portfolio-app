@@ -1,9 +1,14 @@
 // src/components/AssetDetailModal.jsx
 import React from 'react';
-import { getSellHistoryByAssetId } from '../utils/storage';
+import { getSellHistory } from '../utils/storage';
 
 const AssetDetailModal = ({ asset, onClose, exchangeRate }) => {
-  const sellHistory = getSellHistoryByAssetId(asset.id);
+  // 統合銘柄の場合は全IDの売却履歴を取得
+  const assetIds = asset.assetIds || [asset.id];
+  const allSellHistory = getSellHistory();
+  const sellHistory = allSellHistory.filter(record => 
+    assetIds.includes(record.originalAssetId)
+  );
 
   const formatCurrency = (value, currency) => {
     if (currency === 'USD') {
@@ -39,6 +44,19 @@ const AssetDetailModal = ({ asset, onClose, exchangeRate }) => {
         {/* 基本情報 */}
         <div className="detail-section">
           <h3>基本情報</h3>
+          {asset.isConsolidated && (
+            <div style={{
+              background: '#e0e7ff',
+              padding: '12px',
+              borderRadius: '8px',
+              marginBottom: '16px',
+              color: '#4338ca',
+              fontSize: '14px',
+              fontWeight: '500'
+            }}>
+              ℹ️ この銘柄は{asset.assetIds.length}回の購入をまとめて表示しています
+            </div>
+          )}
           <div className="detail-grid">
             <div className="detail-item">
               <label>銘柄名</label>

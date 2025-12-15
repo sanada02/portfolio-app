@@ -27,9 +27,13 @@ const SellAssetModal = ({ asset, onClose, onSell, exchangeRate, addNotification 
       return;
     }
 
+    // 統合銘柄の場合は、最初のIDに対して売却記録を作成
+    // （実際には複数IDがある場合でも、まとめて1つの売却記録として扱う）
+    const targetAssetId = asset.assetIds ? asset.assetIds[0] : asset.id;
+
     // 売却記録を保存
     const sellRecord = {
-      originalAssetId: asset.id,
+      originalAssetId: targetAssetId,
       assetName: asset.name,
       symbol: asset.symbol || asset.isinCd,
       quantity: quantity,
