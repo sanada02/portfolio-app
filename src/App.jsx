@@ -1,4 +1,4 @@
-// src/App.jsx (通知機能追加版)
+// src/App.jsx (トースト通知 + UI改善版)
 import React, { useState, useEffect } from 'react';
 import { loadPortfolio, savePortfolio, getSellHistory } from './utils/storage';
 import { updateAllPrices, rebuildAllHistory, regenerateDailySnapshots } from './utils/priceAPI';
@@ -9,6 +9,7 @@ import SellAssetModal from './components/SellAssetModal';
 import PortfolioTable from './components/PortfolioTable';
 import PerformanceChart from './components/PerformanceChart';
 import AssetAllocationChart from './components/AssetAllocationChart';
+import Toast from './components/Toast';
 import './App.css';
 
 function App() {
@@ -21,6 +22,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [snapshotData, setSnapshotData] = useState([]);
   const [activeTab, setActiveTab] = useState('overview');
+  const [toasts, setToasts] = useState([]);
 
   useEffect(() => {
     const loadedPortfolio = loadPortfolio();
@@ -33,10 +35,15 @@ function App() {
     setSnapshotData(snapshots);
   };
 
-  // 簡易通知関数（alertの代わり）
+  // トースト通知を追加
   const addNotification = (message, type = 'info') => {
-    console.log(`[${type.toUpperCase()}] ${message}`);
-    alert(message);
+    const id = Date.now();
+    setToasts(prev => [...prev, { id, message, type }]);
+  };
+
+  // トーストを削除
+  const removeToast = (id) => {
+    setToasts(prev => prev.filter(toast => toast.id !== id));
   };
 
   const handleAddAsset = (newAsset) => {
@@ -215,6 +222,18 @@ function App() {
 
   return (
     <div className="App">
+      {/* トースト通知コンテナ */}
+      <div className="toast-container">
+        {toasts.map(toast => (
+          <Toast
+            key={toast.id}
+            message={toast.message}
+            type={toast.type}
+            onClose={() => removeToast(toast.id)}
+          />
+        ))}
+      </div>
+
       <header>
         <h1>📊 ポートフォリオ管理システム</h1>
         <div className="header-buttons">

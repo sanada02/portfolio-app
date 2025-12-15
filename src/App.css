@@ -1,4 +1,4 @@
-/* src/App.css (全幅レイアウト版) */
+/* src/App.css (UI改善版) */
 
 * {
   margin: 0;
@@ -18,7 +18,7 @@ body {
   flex-direction: column;
 }
 
-/* ヘッダー */
+/* ========== ヘッダー ========== */
 header {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
@@ -33,7 +33,7 @@ header h1 {
 
 .header-buttons {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   flex-wrap: wrap;
 }
 
@@ -47,6 +47,7 @@ header h1 {
   font-size: 14px;
   font-weight: 500;
   transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
 }
 
 .header-buttons button:hover:not(:disabled) {
@@ -60,14 +61,13 @@ header h1 {
   cursor: not-allowed;
 }
 
-/* メインコンテンツ */
+/* ========== メインコンテンツ ========== */
 main {
   flex: 1;
   padding: 30px 40px;
   max-width: 100%;
 }
 
-/* セクション（全幅） */
 section {
   background: white;
   border-radius: 12px;
@@ -92,7 +92,7 @@ section h3 {
   font-size: 18px;
 }
 
-/* タブ */
+/* ========== タブ ========== */
 .tabs {
   display: flex;
   gap: 10px;
@@ -129,39 +129,7 @@ section h3 {
   min-height: 300px;
 }
 
-/* タグ詳細 */
-.tag-details {
-  margin-top: 30px;
-}
-
-.tag-details details {
-  margin-bottom: 15px;
-  padding: 15px;
-  border: 1px solid #e8eaf0;
-  border-radius: 8px;
-  background: #fafbfc;
-}
-
-.tag-details summary {
-  cursor: pointer;
-  font-weight: 600;
-  font-size: 16px;
-  color: #667eea;
-  padding: 5px;
-  user-select: none;
-}
-
-.tag-details summary:hover {
-  color: #764ba2;
-}
-
-.tag-details details[open] summary {
-  margin-bottom: 15px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid #e8eaf0;
-}
-
-/* テーブル */
+/* ========== テーブル ========== */
 table {
   width: 100%;
   border-collapse: collapse;
@@ -173,80 +141,94 @@ thead {
 }
 
 th {
-  padding: 12px;
+  padding: 14px 12px;
   text-align: left;
   font-weight: 600;
   color: #495057;
   border-bottom: 2px solid #dee2e6;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 td {
-  padding: 12px;
+  padding: 14px 12px;
   border-bottom: 1px solid #e9ecef;
 }
 
-tr:hover {
+tbody tr {
+  transition: background-color 0.2s ease;
+}
+
+tbody tr:hover {
   background-color: #f8f9fa;
 }
 
-/* ボタン */
-button {
-  background: #667eea;
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  transition: all 0.3s ease;
+/* 損益の色分け */
+.profit-positive {
+  color: #10b981;
+  font-weight: 600;
 }
 
-button:hover {
-  background: #5568d3;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 6px rgba(102, 126, 234, 0.4);
+.profit-negative {
+  color: #ef4444;
+  font-weight: 600;
 }
 
-button:active {
-  transform: translateY(0);
+.profit-neutral {
+  color: #6b7280;
+  font-weight: 600;
 }
 
+/* ========== アクションボタン（テーブル内） ========== */
 .action-buttons {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .action-buttons button {
-  padding: 6px 12px;
+  padding: 6px 14px;
   font-size: 13px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  color: white;
 }
 
-.delete-btn {
-  background: #dc3545;
+.action-buttons .edit-btn {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
 }
 
-.delete-btn:hover {
-  background: #c82333;
+.action-buttons .edit-btn:hover {
+  background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(245, 158, 11, 0.4);
 }
 
-.edit-btn {
-  background: #ffc107;
+.action-buttons .sell-btn {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
 }
 
-.edit-btn:hover {
-  background: #e0a800;
+.action-buttons .sell-btn:hover {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.4);
 }
 
-.sell-btn {
-  background: #28a745;
+.action-buttons .delete-btn {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
 }
 
-.sell-btn:hover {
-  background: #218838;
+.action-buttons .delete-btn:hover {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.4);
 }
 
-/* モーダル */
+/* ========== モーダル ========== */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -259,6 +241,7 @@ button:active {
   align-items: center;
   z-index: 1000;
   animation: fadeIn 0.3s ease;
+  backdrop-filter: blur(4px);
 }
 
 @keyframes fadeIn {
@@ -268,13 +251,13 @@ button:active {
 
 .modal {
   background: white;
-  border-radius: 12px;
-  padding: 30px;
+  border-radius: 16px;
+  padding: 32px;
   max-width: 600px;
   width: 90%;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
   animation: slideUp 0.3s ease;
 }
 
@@ -291,11 +274,13 @@ button:active {
 
 .modal h2 {
   color: #667eea;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
   border-bottom: 2px solid #e8eaf0;
-  padding-bottom: 10px;
+  padding-bottom: 12px;
+  font-size: 24px;
 }
 
+/* ========== フォーム ========== */
 .form-group {
   margin-bottom: 20px;
 }
@@ -308,15 +293,23 @@ button:active {
   font-size: 14px;
 }
 
+.form-group label small {
+  font-weight: 400;
+  color: #6c757d;
+  font-size: 12px;
+  margin-left: 6px;
+}
+
 .form-group input,
 .form-group select,
 .form-group textarea {
   width: 100%;
-  padding: 10px 12px;
-  border: 1px solid #ced4da;
-  border-radius: 6px;
+  padding: 12px 14px;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
   font-size: 14px;
-  transition: border-color 0.3s ease;
+  transition: all 0.3s ease;
+  font-family: inherit;
 }
 
 .form-group input:focus,
@@ -327,93 +320,179 @@ button:active {
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
+.form-group input:disabled {
+  background: #f8f9fa;
+  color: #6c757d;
+  cursor: not-allowed;
+}
+
 .form-group textarea {
   resize: vertical;
   min-height: 80px;
-  font-family: inherit;
 }
 
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 15px;
+  gap: 16px;
 }
 
-.modal-buttons {
+/* ========== タグ入力 ========== */
+.tags-input-container {
   display: flex;
-  gap: 10px;
-  justify-content: flex-end;
-  margin-top: 25px;
-  padding-top: 20px;
-  border-top: 1px solid #e9ecef;
+  gap: 8px;
+  margin-bottom: 8px;
 }
 
-.modal-buttons button {
-  padding: 10px 24px;
+.tags-input-container input {
+  flex: 1;
 }
 
-.cancel-btn {
-  background: #6c757d;
+.tags-input-container button {
+  white-space: nowrap;
+  padding: 12px 20px;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s ease;
 }
 
-.cancel-btn:hover {
-  background: #5a6268;
+.tags-input-container button:hover {
+  background: #5568d3;
+  transform: translateY(-1px);
 }
 
-/* タグ */
-.tags-input {
+.tag-list {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  padding: 8px;
-  border: 1px solid #ced4da;
-  border-radius: 6px;
-  min-height: 42px;
+  margin-top: 8px;
 }
 
-.tag {
-  background: #667eea;
+.tag-badge {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
-  padding: 4px 10px;
-  border-radius: 4px;
+  padding: 6px 12px;
+  border-radius: 20px;
   font-size: 13px;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 6px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  font-weight: 500;
 }
 
-.tag button {
-  background: none;
+.tag-badge:hover {
+  transform: scale(1.05);
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
+}
+
+/* ========== モーダルボタン ========== */
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 28px;
+  padding-top: 24px;
+  border-top: 1px solid #e9ecef;
+}
+
+.modal-actions button {
+  padding: 12px 28px;
+  border-radius: 8px;
   border: none;
-  color: white;
   cursor: pointer;
+  font-size: 15px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  min-width: 100px;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.btn-primary:hover {
+  background: linear-gradient(135deg, #5568d3 0%, #6a3f8f 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.btn-secondary {
+  background: #e9ecef;
+  color: #495057;
+}
+
+.btn-secondary:hover {
+  background: #dee2e6;
+  transform: translateY(-2px);
+}
+
+/* ========== タグ詳細 ========== */
+.tag-details {
+  margin-top: 30px;
+}
+
+.tag-details details {
+  margin-bottom: 15px;
+  padding: 16px;
+  border: 2px solid #e8eaf0;
+  border-radius: 12px;
+  background: #fafbfc;
+  transition: all 0.3s ease;
+}
+
+.tag-details details:hover {
+  border-color: #667eea;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.1);
+}
+
+.tag-details summary {
+  cursor: pointer;
+  font-weight: 600;
   font-size: 16px;
-  padding: 0;
-  width: 18px;
-  height: 18px;
+  color: #667eea;
+  padding: 8px;
+  user-select: none;
   display: flex;
   align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  transition: background 0.2s;
+  gap: 8px;
 }
 
-.tag button:hover {
-  background: rgba(255,255,255,0.2);
-  transform: none;
-  box-shadow: none;
+.tag-details summary:hover {
+  color: #764ba2;
 }
 
-.tags-input input {
-  border: none;
-  outline: none;
-  flex: 1;
-  min-width: 120px;
-  padding: 4px;
-  font-size: 14px;
+.tag-details details[open] summary {
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #e8eaf0;
 }
 
-/* レスポンシブ */
+/* ========== 空の状態 ========== */
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: #6c757d;
+}
+
+.empty-state h3 {
+  color: #6c757d;
+  margin-bottom: 10px;
+  font-size: 20px;
+}
+
+.empty-state p {
+  font-size: 16px;
+  margin-bottom: 20px;
+}
+
+/* ========== レスポンシブ ========== */
 @media (max-width: 768px) {
   header {
     padding: 15px 20px;
@@ -444,7 +523,7 @@ button:active {
   }
 
   th, td {
-    padding: 8px;
+    padding: 10px 8px;
   }
 
   .tabs {
@@ -455,27 +534,51 @@ button:active {
   .tabs button {
     white-space: nowrap;
   }
+
+  .action-buttons {
+    flex-direction: column;
+  }
+
+  .action-buttons button {
+    width: 100%;
+  }
+
+  .modal {
+    padding: 24px;
+    width: 95%;
+  }
+
+  .modal-actions {
+    flex-direction: column-reverse;
+  }
+
+  .modal-actions button {
+    width: 100%;
+  }
 }
 
-/* チャートコンテナ */
+/* ========== チャートコンテナ ========== */
 .chart-container {
   padding: 20px 0;
 }
 
-/* 空の状態 */
-.empty-state {
+/* ========== ユーティリティクラス ========== */
+.text-center {
   text-align: center;
-  padding: 60px 20px;
+}
+
+.text-muted {
   color: #6c757d;
 }
 
-.empty-state h3 {
-  color: #6c757d;
-  margin-bottom: 10px;
-  font-size: 20px;
+.mt-2 {
+  margin-top: 1rem;
 }
 
-.empty-state p {
-  font-size: 16px;
-  margin-bottom: 20px;
+.mb-2 {
+  margin-bottom: 1rem;
+}
+
+.p-2 {
+  padding: 1rem;
 }
