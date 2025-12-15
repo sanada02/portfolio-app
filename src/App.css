@@ -208,6 +208,16 @@ tbody tr:hover {
   box-shadow: 0 2px 6px rgba(245, 158, 11, 0.4);
 }
 
+.action-buttons .detail-btn {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+}
+
+.action-buttons .detail-btn:hover {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(59, 130, 246, 0.4);
+}
+
 .action-buttons .sell-btn {
   background: linear-gradient(135deg, #10b981 0%, #059669 100%);
 }
@@ -261,6 +271,10 @@ tbody tr:hover {
   animation: slideUp 0.3s ease;
 }
 
+.modal-detail {
+  max-width: 800px;
+}
+
 @keyframes slideUp {
   from {
     transform: translateY(30px);
@@ -278,6 +292,52 @@ tbody tr:hover {
   border-bottom: 2px solid #e8eaf0;
   padding-bottom: 12px;
   font-size: 24px;
+}
+
+/* 詳細モーダル専用 */
+.detail-section {
+  margin-bottom: 28px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.detail-section:last-of-type {
+  border-bottom: none;
+}
+
+.detail-section h3 {
+  color: #667eea;
+  font-size: 16px;
+  margin-bottom: 16px;
+  font-weight: 600;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.detail-item {
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+.detail-item label {
+  display: block;
+  font-size: 12px;
+  color: #6c757d;
+  margin-bottom: 6px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.detail-value {
+  font-size: 15px;
+  font-weight: 600;
+  color: #333;
 }
 
 /* ========== フォーム ========== */

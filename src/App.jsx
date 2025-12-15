@@ -6,6 +6,7 @@ import { getDailySnapshots } from './utils/database';
 import AddAssetModal from './components/AddAssetModal';
 import EditAssetModal from './components/EditAssetModal';
 import SellAssetModal from './components/SellAssetModal';
+import AssetDetailModal from './components/AssetDetailModal';
 import PortfolioTable from './components/PortfolioTable';
 import PerformanceChart from './components/PerformanceChart';
 import AssetAllocationChart from './components/AssetAllocationChart';
@@ -17,6 +18,7 @@ function App() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isSellModalOpen, setIsSellModalOpen] = useState(false);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [exchangeRate, setExchangeRate] = useState(150);
   const [isLoading, setIsLoading] = useState(false);
@@ -166,6 +168,11 @@ function App() {
     setIsSellModalOpen(true);
   };
 
+  const openDetailModal = (asset) => {
+    setSelectedAsset(asset);
+    setIsDetailModalOpen(true);
+  };
+
   const getActivePortfolio = () => {
     const sellHistory = getSellHistory();
     
@@ -259,6 +266,7 @@ function App() {
             onEdit={openEditModal}
             onDelete={handleDeleteAsset}
             onSell={openSellModal}
+            onDetail={openDetailModal}
           />
         </section>
 
@@ -385,6 +393,17 @@ function App() {
           onSell={handleSellAsset}
           exchangeRate={exchangeRate}
           addNotification={addNotification}
+        />
+      )}
+
+      {isDetailModalOpen && selectedAsset && (
+        <AssetDetailModal
+          asset={selectedAsset}
+          onClose={() => {
+            setIsDetailModalOpen(false);
+            setSelectedAsset(null);
+          }}
+          exchangeRate={exchangeRate}
         />
       )}
     </div>

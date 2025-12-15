@@ -1,7 +1,7 @@
 // src/components/PortfolioTable.jsx (UI改善版)
 import React from 'react';
 
-const PortfolioTable = ({ portfolio, exchangeRate, onEdit, onDelete, onSell }) => {
+const PortfolioTable = ({ portfolio, exchangeRate, onEdit, onDelete, onSell, onDetail }) => {
   if (!portfolio || portfolio.length === 0) {
     return (
       <div className="empty-state">
@@ -134,6 +134,11 @@ const PortfolioTable = ({ portfolio, exchangeRate, onEdit, onDelete, onSell }) =
                 </td>
                 <td>
                   <div className="action-buttons">
+                    <button className="detail-btn" onClick={() => onDetail(asset)} style={{
+                      background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)'
+                    }}>
+                      詳細
+                    </button>
                     <button className="edit-btn" onClick={() => onEdit(asset)}>
                       編集
                     </button>
