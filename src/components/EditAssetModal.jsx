@@ -1,7 +1,7 @@
-// src/components/EditAssetModal.jsx
+// src/components/EditAssetModal.jsx (改善版)
 import { useState } from 'react';
 
-export default function EditAssetModal({ asset, onClose, onSave, addNotification }) {
+export default function EditAssetModal({ asset, onClose, onSave, addNotification, portfolio }) {
   const [editingAsset, setEditingAsset] = useState({
     ...asset,
     tags: asset.tags || []
@@ -44,12 +44,38 @@ export default function EditAssetModal({ asset, onClose, onSave, addNotification
       return;
     }
     
+    // 🔥 改善: タグが変更されているかチェック
+    const originalTags = JSON.stringify((asset.tags || []).sort());
+    const newTags = JSON.stringify((editingAsset.tags || []).sort());
+    const tagsChanged = originalTags !== newTags;
+    
+    // 🔥 改善: 同一銘柄が複数あるかチェック（portfolioが渡されている場合のみ）
+    let applyToAll = false;
+    if (tagsChanged && portfolio) {
+      const sameAssetCount = portfolio.filter(a => {
+        const isSame = a.symbol 
+          ? a.symbol === editingAsset.symbol 
+          : a.isinCd === editingAsset.isinCd;
+        return isSame;
+      }).length;
+      
+      if (sameAssetCount > 1) {
+        applyToAll = window.confirm(
+          `同じ銘柄が${sameAssetCount}件あります。\n` +
+          `すべてに同じタグ（${editingAsset.tags.join(', ')}）を適用しますか？`
+        );
+      }
+    } else if (tagsChanged) {
+      // portfolioが渡されていない場合はデフォルトでtrueにする（後方互換性）
+      applyToAll = true;
+    }
+    
     const updatedAsset = {
       ...editingAsset,
       quantity: parseFloat(editingAsset.quantity),
       purchasePrice: parseFloat(editingAsset.purchasePrice),
       currentPrice: editingAsset.currentPrice ? parseFloat(editingAsset.currentPrice) : editingAsset.purchasePrice,
-      applyTagsToAll: true // 🔥 同一銘柄にタグを適用するフラグ
+      applyTagsToAll: applyToAll
     };
     
     onSave(updatedAsset);
@@ -67,7 +93,7 @@ export default function EditAssetModal({ asset, onClose, onSave, addNotification
 
           {/* タグ機能 */}
           <div className="form-group">
-            <label>タグ <small>（分析用。複数設定可能）</small></label>
+            <label>タグ <small>(分析用。複数設定可能)</small></label>
             <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
               <input 
                 type="text" 

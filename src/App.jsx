@@ -1,329 +1,367 @@
-import { useState, useEffect } from 'react';
-import { Settings, RefreshCw, Plus, History } from 'lucide-react';
-import { updateAllPrices } from './utils/priceAPI';
+// src/App.jsx (完全修正版 - 全幅レイアウト + タブ機能)
+import React, { useState, useEffect } from 'react';
+import { loadPortfolio, savePortfolio, getSellHistory } from './utils/storage';
+import { updateAllPrices, rebuildAllHistory, regenerateDailySnapshots } from './utils/priceAPI';
 import { getDailySnapshots } from './utils/database';
-import { getPortfolio, savePortfolio, getSellHistory, saveSellHistory, addSellRecord, deleteSellRecord } from './utils/storage';
-import { calculateTotalValue, calculateTotalValueUSD, calculateTotalProfitLoss, getActiveQuantity } from './utils/calculations';
-import Notification from './components/Notification';
-import SummaryCards from './components/SummaryCards';
-import TrendChart from './components/TrendChart';
-import AssetChart from './components/AssetChart';
-import TagAnalysisChart from './components/TagAnalysisChart';
-import PortfolioTable from './components/PortfolioTable';
 import AddAssetModal from './components/AddAssetModal';
 import EditAssetModal from './components/EditAssetModal';
 import SellAssetModal from './components/SellAssetModal';
-import SellHistoryModal from './components/SellHistoryModal';
-import SettingsModal from './components/SettingsModal';
+import PortfolioTable from './components/PortfolioTable';
+import PerformanceChart from './components/PerformanceChart';
+import AssetAllocationChart from './components/AssetAllocationChart';
 import './App.css';
 
 function App() {
   const [portfolio, setPortfolio] = useState([]);
-  const [sellHistory, setSellHistory] = useState([]);
-  const [dailyHistory, setDailyHistory] = useState([]);
-  const [exchangeRate, setExchangeRate] = useState(150);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isSellModalOpen, setIsSellModalOpen] = useState(false);
-  const [isSellHistoryOpen, setIsSellHistoryOpen] = useState(false);
-  const [editingAsset, setEditingAsset] = useState(null);
-  const [sellingAsset, setSellingAsset] = useState(null);
-  const [isUpdating, setIsUpdating] = useState(false);
-  const [lastUpdateTime, setLastUpdateTime] = useState(null);
-  const [notifications, setNotifications] = useState([]);
+  const [selectedAsset, setSelectedAsset] = useState(null);
+  const [exchangeRate, setExchangeRate] = useState(150);
+  const [isLoading, setIsLoading] = useState(false);
+  const [snapshotData, setSnapshotData] = useState([]);
+  const [activeTab, setActiveTab] = useState('overview'); // overview, allocation, tags
 
   useEffect(() => {
-    loadData();
+    const loadedPortfolio = loadPortfolio();
+    setPortfolio(loadedPortfolio);
+    loadSnapshots();
   }, []);
 
-  const loadData = async () => {
-    try {
-      const savedPortfolio = getPortfolio();
-      setPortfolio(savedPortfolio);
-      
-      const savedSellHistory = getSellHistory();
-      setSellHistory(savedSellHistory);
-      
-      await loadDailyHistory();
-    } catch (error) {
-      console.error('初期化エラー:', error);
-    }
-  };
-
-  const loadDailyHistory = async () => {
-    try {
-      const history = await getDailySnapshots(30);
-      setDailyHistory(history);
-    } catch (error) {
-      console.error('日次履歴の読み込みエラー:', error);
-    }
-  };
-
-  const addNotification = (message, type = 'info') => {
-    const id = Date.now();
-    setNotifications(prev => [...prev, { id, message, type }]);
-    setTimeout(() => removeNotification(id), 5000);
-  };
-
-  const removeNotification = (id) => {
-    setNotifications(prev => prev.filter(n => n.id !== id));
-  };
-
-  const handleUpdatePrices = async () => {
-    setIsUpdating(true);
-    try {
-      if (portfolio.length === 0) {
-        addNotification('更新する銘柄がありません', 'warning');
-        return;
-      }
-      addNotification('価格更新を開始しています...', 'info');
-      const result = await updateAllPrices(portfolio);
-      setPortfolio(result.portfolio);
-      setExchangeRate(result.exchangeRate);
-      savePortfolio(result.portfolio);
-      setLastUpdateTime(new Date());
-      await loadDailyHistory();
-      
-      if (result.errors && result.errors.length > 0) {
-        result.errors.forEach(error => addNotification(error, 'error'));
-        addNotification(`価格更新完了（${result.errors.length}件のエラー）`, 'warning');
-      } else {
-        addNotification('価格更新が完了しました！', 'success');
-      }
-    } catch (error) {
-      console.error('価格更新エラー:', error);
-      addNotification('価格の更新に失敗しました: ' + error.message, 'error');
-    } finally {
-      setIsUpdating(false);
-    }
+  const loadSnapshots = async () => {
+    const snapshots = await getDailySnapshots();
+    setSnapshotData(snapshots);
   };
 
   const handleAddAsset = (newAsset) => {
     const updatedPortfolio = [...portfolio, newAsset];
     setPortfolio(updatedPortfolio);
     savePortfolio(updatedPortfolio);
-    addNotification(`${newAsset.name} を追加しました`, 'success');
   };
 
-  const handleEditAsset = (asset) => {
-    setEditingAsset({...asset});
+  const handleEditAsset = (editedAsset) => {
+    const updatedPortfolio = portfolio.map(asset => 
+      asset.id === editedAsset.id ? editedAsset : asset
+    );
+    setPortfolio(updatedPortfolio);
+    savePortfolio(updatedPortfolio);
+  };
+
+  const handleDeleteAsset = (assetId) => {
+    if (window.confirm('本当にこの資産を削除しますか？')) {
+      const updatedPortfolio = portfolio.filter(asset => asset.id !== assetId);
+      setPortfolio(updatedPortfolio);
+      savePortfolio(updatedPortfolio);
+    }
+  };
+
+  const handleSellAsset = (soldAsset) => {
+    const updatedPortfolio = portfolio.map(asset => {
+      if (asset.id === soldAsset.id) {
+        return {
+          ...asset,
+          quantity: asset.quantity - soldAsset.soldQuantity
+        };
+      }
+      return asset;
+    }).filter(asset => asset.quantity > 0);
+    
+    setPortfolio(updatedPortfolio);
+    savePortfolio(updatedPortfolio);
+    loadSnapshots();
+  };
+
+  const handleUpdatePrices = async () => {
+    setIsLoading(true);
+    try {
+      const result = await updateAllPrices(portfolio);
+      setPortfolio(result.portfolio);
+      setExchangeRate(result.exchangeRate);
+      savePortfolio(result.portfolio);
+      
+      if (result.errors) {
+        alert(`価格更新完了\n\nエラー:\n${result.errors.join('\n')}`);
+      } else {
+        alert('すべての価格を更新しました！');
+      }
+      
+      await loadSnapshots();
+    } catch (error) {
+      console.error('価格更新エラー:', error);
+      alert('価格更新中にエラーが発生しました');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRebuildHistory = async () => {
+    if (!window.confirm('全履歴データを再構築しますか？（数分かかる場合があります）')) {
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const result = await rebuildAllHistory(portfolio);
+      
+      if (result.errors) {
+        alert(`履歴再構築完了\n\nエラー:\n${result.errors.join('\n')}`);
+      } else {
+        alert(`履歴データの取得が完了しました！\n最古の購入日: ${result.oldestDate}`);
+      }
+    } catch (error) {
+      console.error('履歴再構築エラー:', error);
+      alert('履歴再構築中にエラーが発生しました');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRegenerateSnapshots = async () => {
+    if (!window.confirm('日次スナップショットを再生成しますか？（数分かかる場合があります）')) {
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const result = await regenerateDailySnapshots(portfolio);
+      
+      if (result.success) {
+        alert(`スナップショット再生成完了！\n${result.snapshotCount}日分のデータを生成しました`);
+        await loadSnapshots();
+      } else {
+        alert(result.message || 'スナップショット再生成に失敗しました');
+      }
+    } catch (error) {
+      console.error('スナップショット再生成エラー:', error);
+      alert('スナップショット再生成中にエラーが発生しました: ' + error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const openEditModal = (asset) => {
+    setSelectedAsset(asset);
     setIsEditModalOpen(true);
   };
 
-  const handleSaveEdit = (updatedAsset) => {
-    const updatedPortfolio = portfolio.map(asset => {
-      // 同じ銘柄（シンボルまたはISINコードが一致）にタグを適用
-      const isSameAsset = asset.symbol 
-        ? asset.symbol === updatedAsset.symbol 
-        : asset.isinCd === updatedAsset.isinCd;
-      
-      if (isSameAsset && updatedAsset.applyTagsToAll) {
-        // 同一銘柄の場合はタグだけを更新
-        return asset.id === updatedAsset.id 
-          ? updatedAsset 
-          : { ...asset, tags: updatedAsset.tags };
-      } else if (asset.id === updatedAsset.id) {
-        return updatedAsset;
-      }
-      return asset;
-    });
-    
-    setPortfolio(updatedPortfolio);
-    savePortfolio(updatedPortfolio);
-    setIsEditModalOpen(false);
-    setEditingAsset(null);
-    
-    // 同一銘柄が複数ある場合はメッセージを変更
-    const sameAssetCount = portfolio.filter(asset => {
-      const isSame = asset.symbol 
-        ? asset.symbol === updatedAsset.symbol 
-        : asset.isinCd === updatedAsset.isinCd;
-      return isSame;
-    }).length;
-    
-    if (sameAssetCount > 1) {
-      addNotification(`銘柄を更新しました（同一銘柄${sameAssetCount}件にタグを適用）`, 'success');
-    } else {
-      addNotification('銘柄を更新しました', 'success');
-    }
-  };
-
-  const handleDeleteAsset = (id) => {
-    const asset = portfolio.find(a => a.id === id);
-    
-    // この銘柄に関連する売却記録があるかチェック
-    const relatedSells = sellHistory.filter(record => record.originalAssetId === id);
-    
-    if (relatedSells.length > 0) {
-      if (!window.confirm(`この銘柄には${relatedSells.length}件の売却記録があります。\n銘柄と売却記録の両方を削除しますか？`)) {
-        return;
-      }
-      // 売却記録も削除
-      const updatedSellHistory = sellHistory.filter(record => record.originalAssetId !== id);
-      setSellHistory(updatedSellHistory);
-      saveSellHistory(updatedSellHistory);
-    } else {
-      if (!window.confirm('この銘柄を削除しますか？')) {
-        return;
-      }
-    }
-    
-    const updatedPortfolio = portfolio.filter(asset => asset.id !== id);
-    setPortfolio(updatedPortfolio);
-    savePortfolio(updatedPortfolio);
-    addNotification('銘柄を削除しました', 'success');
-  };
-
-  const handleSellAsset = (asset) => {
-    setSellingAsset(asset);
+  const openSellModal = (asset) => {
+    setSelectedAsset(asset);
     setIsSellModalOpen(true);
   };
 
-  const handleCompleteSell = (sellRecord) => {
-    // 🔥 重要: 保有銘柄の数量は変更しない！
-    // 売却記録だけを追加する
+  // 売却履歴を考慮した実質保有銘柄のみ計算
+  const getActivePortfolio = () => {
+    const sellHistory = getSellHistory();
     
-    addSellRecord(sellRecord);
-    setSellHistory([...sellHistory, sellRecord]);
+    return portfolio.map(asset => {
+      const soldQuantity = sellHistory
+        .filter(record => record.originalAssetId === asset.id)
+        .reduce((sum, record) => sum + record.quantity, 0);
+      
+      const activeQuantity = asset.quantity - soldQuantity;
+      
+      return {
+        ...asset,
+        activeQuantity,
+        displayQuantity: asset.quantity,
+        soldQuantity
+      };
+    }).filter(asset => asset.activeQuantity > 0);
+  };
+
+  const activePortfolio = getActivePortfolio();
+
+  // タグ別集計
+  const getTagAnalysis = () => {
+    const tagTotals = {};
     
-    setIsSellModalOpen(false);
-    setSellingAsset(null);
+    activePortfolio.forEach(asset => {
+      if (!asset.tags || asset.tags.length === 0) {
+        tagTotals['タグなし'] = (tagTotals['タグなし'] || 0) + (asset.currentPrice || asset.purchasePrice) * asset.activeQuantity;
+      } else {
+        asset.tags.forEach(tag => {
+          const value = asset.currency === 'USD'
+            ? (asset.currentPrice || asset.purchasePrice) * asset.activeQuantity * exchangeRate
+            : (asset.currentPrice || asset.purchasePrice) * asset.activeQuantity;
+          
+          tagTotals[tag] = (tagTotals[tag] || 0) + value;
+        });
+      }
+    });
     
-    const profitText = sellRecord.profitJPY >= 0 
-      ? `+${sellRecord.profitJPY.toLocaleString()}` 
-      : sellRecord.profitJPY.toLocaleString();
-    addNotification(
-      `${sellRecord.name} を売却しました（損益: ¥${profitText}）`, 
-      sellRecord.profitJPY >= 0 ? 'success' : 'warning'
+    return Object.entries(tagTotals)
+      .map(([tag, value]) => ({ tag, value }))
+      .sort((a, b) => b.value - a.value);
+  };
+
+  // 特定タグでフィルター
+  const getAssetsByTag = (selectedTag) => {
+    if (!selectedTag) return [];
+    
+    return activePortfolio.filter(asset => 
+      asset.tags && asset.tags.includes(selectedTag)
     );
   };
 
-  const handleDeleteSellRecord = (id) => {
-    if (!window.confirm('この売却記録を削除しますか？')) {
-      return;
-    }
-    
-    deleteSellRecord(id);
-    const updatedHistory = sellHistory.filter(record => record.id !== id);
-    setSellHistory(updatedHistory);
-    addNotification('売却記録を削除しました', 'success');
-  };
-
-  const totalValueJPY = calculateTotalValue(portfolio, sellHistory, exchangeRate);
-  const totalValueUSD = calculateTotalValueUSD(portfolio, sellHistory);
-  const totalProfitLoss = calculateTotalProfitLoss(portfolio, sellHistory, exchangeRate);
+  const tagAnalysis = getTagAnalysis();
+  const allTags = [...new Set(portfolio.flatMap(a => a.tags || []))];
 
   return (
-    <div className="app">
-      <header className="header">
-        <div className="header-content">
-          <h1>💼 ポートフォリオ管理</h1>
-          <div className="header-actions">
-            {lastUpdateTime && (
-              <span className="last-update">
-                最終更新: {lastUpdateTime.toLocaleTimeString('ja-JP')}
-              </span>
-            )}
-            <button className="btn-settings" onClick={() => setIsSellHistoryOpen(true)} title="売却履歴">
-              <History size={20} />
-            </button>
-            <button className="btn-settings" onClick={() => setIsSettingsOpen(true)} title="設定">
-              <Settings size={20} />
-            </button>
-            <button className="btn-refresh" onClick={handleUpdatePrices} disabled={isUpdating}>
-              <RefreshCw size={20} className={isUpdating ? 'spinning' : ''} />
-              {isUpdating ? '更新中...' : '価格更新'}
-            </button>
-          </div>
+    <div className="App">
+      <header>
+        <h1>📊 ポートフォリオ管理システム</h1>
+        <div className="header-buttons">
+          <button onClick={() => setIsAddModalOpen(true)}>➕ 資産追加</button>
+          <button onClick={handleUpdatePrices} disabled={isLoading}>
+            {isLoading ? '⏳ 更新中...' : '🔄 価格更新'}
+          </button>
+          <button onClick={handleRebuildHistory} disabled={isLoading}>
+            📚 履歴再構築
+          </button>
+          <button onClick={handleRegenerateSnapshots} disabled={isLoading}>
+            📸 スナップショット再生成
+          </button>
         </div>
       </header>
 
-      <main className="main-content">
-        <SummaryCards
-          totalValueJPY={totalValueJPY}
-          totalValueUSD={totalValueUSD}
-          totalProfitLoss={totalProfitLoss}
-          exchangeRate={exchangeRate}
-          portfolioCount={portfolio.length}
-          historyDays={dailyHistory.length}
-        />
+      <main>
+        {/* 全幅：ポートフォリオテーブル */}
+        <section className="portfolio-section">
+          <h2>保有銘柄一覧</h2>
+          <PortfolioTable
+            portfolio={activePortfolio}
+            exchangeRate={exchangeRate}
+            onEdit={openEditModal}
+            onDelete={handleDeleteAsset}
+            onSell={openSellModal}
+          />
+        </section>
 
-        <TrendChart dailyHistory={dailyHistory} />
+        {/* 全幅：パフォーマンスチャート */}
+        <section className="performance-section">
+          <h2>📈 パフォーマンス推移</h2>
+          <PerformanceChart data={snapshotData} />
+        </section>
 
-        <TagAnalysisChart portfolio={portfolio} sellHistory={sellHistory} exchangeRate={exchangeRate} />
-
-        <div className="content-grid">
-          <AssetChart portfolio={portfolio} sellHistory={sellHistory} exchangeRate={exchangeRate} />
-
-          <div className="section">
-            <div className="section-header">
-              <h2>保有銘柄</h2>
-              <button className="btn-primary" onClick={() => setIsModalOpen(true)}>
-                <Plus size={20} />銘柄を追加
-              </button>
-            </div>
-            <PortfolioTable
-              portfolio={portfolio}
-              sellHistory={sellHistory}
-              exchangeRate={exchangeRate}
-              onEdit={handleEditAsset}
-              onDelete={handleDeleteAsset}
-              onSell={handleSellAsset}
-            />
+        {/* 全幅：資産配分（タブ付き） */}
+        <section className="allocation-section">
+          <div className="tabs">
+            <button 
+              className={activeTab === 'overview' ? 'active' : ''}
+              onClick={() => setActiveTab('overview')}
+            >
+              全体配分
+            </button>
+            <button 
+              className={activeTab === 'allocation' ? 'active' : ''}
+              onClick={() => setActiveTab('allocation')}
+            >
+              資産種別
+            </button>
+            <button 
+              className={activeTab === 'tags' ? 'active' : ''}
+              onClick={() => setActiveTab('tags')}
+            >
+              タグ別分析
+            </button>
           </div>
-        </div>
+
+          <div className="tab-content">
+            {activeTab === 'overview' && (
+              <div>
+                <h2>🍰 全体資産配分</h2>
+                <AssetAllocationChart portfolio={activePortfolio} exchangeRate={exchangeRate} />
+              </div>
+            )}
+
+            {activeTab === 'allocation' && (
+              <div>
+                <h2>📊 資産種別配分</h2>
+                <AssetAllocationChart 
+                  portfolio={activePortfolio} 
+                  exchangeRate={exchangeRate}
+                  groupBy="type"
+                />
+              </div>
+            )}
+
+            {activeTab === 'tags' && (
+              <div>
+                <h2>🏷️ タグ別分析</h2>
+                {tagAnalysis.length > 0 ? (
+                  <AssetAllocationChart
+                    portfolio={activePortfolio}
+                    exchangeRate={exchangeRate}
+                    groupBy="tags"
+                  />
+                ) : (
+                  <p style={{textAlign: 'center', padding: '40px', color: '#666'}}>
+                    タグが設定された銘柄がありません
+                  </p>
+                )}
+
+                {/* タグごとの詳細分析 */}
+                {allTags.length > 0 && (
+                  <div className="tag-details" style={{marginTop: '30px'}}>
+                    <h3>タグ内訳</h3>
+                    {allTags.map(tag => {
+                      const tagAssets = getAssetsByTag(tag);
+                      if (tagAssets.length === 0) return null;
+                      
+                      return (
+                        <details key={tag} style={{marginBottom: '15px', padding: '10px', border: '1px solid #ddd', borderRadius: '5px'}}>
+                          <summary style={{cursor: 'pointer', fontWeight: 'bold'}}>
+                            🏷️ {tag} ({tagAssets.length}銘柄)
+                          </summary>
+                          <div style={{marginTop: '15px'}}>
+                            <AssetAllocationChart
+                              portfolio={tagAssets}
+                              exchangeRate={exchangeRate}
+                              groupBy="name"
+                            />
+                          </div>
+                        </details>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </section>
       </main>
 
-      {isModalOpen && (
+      {isAddModalOpen && (
         <AddAssetModal
-          onClose={() => setIsModalOpen(false)}
+          onClose={() => setIsAddModalOpen(false)}
           onAdd={handleAddAsset}
-          addNotification={addNotification}
-        />
-      )}
-
-      {isEditModalOpen && editingAsset && (
-        <EditAssetModal
-          asset={editingAsset}
-          onClose={() => setIsEditModalOpen(false)}
-          onSave={handleSaveEdit}
-          addNotification={addNotification}
-        />
-      )}
-
-      {isSellModalOpen && sellingAsset && (
-        <SellAssetModal
-          asset={sellingAsset}
-          sellHistory={sellHistory}
           exchangeRate={exchangeRate}
-          onClose={() => setIsSellModalOpen(false)}
-          onSell={handleCompleteSell}
-          addNotification={addNotification}
         />
       )}
 
-      {isSellHistoryOpen && (
-        <SellHistoryModal
-          sellHistory={sellHistory}
-          onClose={() => setIsSellHistoryOpen(false)}
-          onDelete={handleDeleteSellRecord}
-        />
-      )}
-
-      {isSettingsOpen && (
-        <SettingsModal
-          onClose={() => setIsSettingsOpen(false)}
+      {isEditModalOpen && selectedAsset && (
+        <EditAssetModal
+          asset={selectedAsset}
           portfolio={portfolio}
-          dailyHistory={dailyHistory}
-          isUpdating={isUpdating}
-          setIsUpdating={setIsUpdating}
-          loadDailyHistory={loadDailyHistory}
-          addNotification={addNotification}
+          onClose={() => {
+            setIsEditModalOpen(false);
+            setSelectedAsset(null);
+          }}
+          onSave={handleEditAsset}
         />
       )}
 
-      <Notification notifications={notifications} onRemove={removeNotification} />
+      {isSellModalOpen && selectedAsset && (
+        <SellAssetModal
+          asset={selectedAsset}
+          onClose={() => {
+            setIsSellModalOpen(false);
+            setSelectedAsset(null);
+          }}
+          onSell={handleSellAsset}
+          exchangeRate={exchangeRate}
+        />
+      )}
     </div>
   );
 }

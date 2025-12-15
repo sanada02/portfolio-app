@@ -1,5 +1,5 @@
-// src/utils/priceAPI.js
-import { getCache, setCache, savePriceHistory, getPriceByDate, getClosestPrice, saveExchangeRate, getExchangeRate as getExchangeRateFromDB, saveDailySnapshot } from './database';
+// src/utils/priceAPI.js (無限再帰バグ修正版)
+import { getCache, setCache, savePriceHistory, getPriceByDate, getClosestPrice, saveExchangeRate, getLatestExchangeRate, saveDailySnapshot } from './database';
 import { getSellHistory } from './storage';
 
 // プロキシサーバーのURL
@@ -249,7 +249,17 @@ export const getExchangeRate = async () => {
   } catch (error) {
     console.error('✗ 為替レート取得エラー:', error.message);
     console.log('⚠ フォールバック値を使用: ¥150');
-    return 150;
+    const fallbackRate = 150;
+    
+    const today = new Date().toISOString().split('T')[0];
+    try {
+      await saveExchangeRate(today, fallbackRate);
+      await setCache(cacheKey, { rate: fallbackRate });
+    } catch (saveError) {
+      console.error('フォールバック値の保存に失敗:', saveError);
+    }
+    
+    return fallbackRate;
   }
 };
 
@@ -447,7 +457,7 @@ export const rebuildAllHistory = async (portfolio) => {
 };
 
 // ===========================
-// 🔥 日次スナップショットを再生成（売却対応版）
+// 🔥 日次スナップショットを再生成（無限再帰バグ修正版）
 // ===========================
 
 export const regenerateDailySnapshots = async (portfolio) => {
@@ -462,8 +472,8 @@ export const regenerateDailySnapshots = async (portfolio) => {
   // 売却履歴を取得
   const sellHistory = getSellHistory();
   
-  // 動的インポート
-  const { getClosestExchangeRate } = await import('./database');
+  // 🔥 修正: 直接インポートして無限再帰を防ぐ
+  const db = (await import('./database')).default;
   
   // 最も古い購入日を特定
   const oldestPurchaseDate = portfolio.reduce((oldest, asset) => {
@@ -483,7 +493,7 @@ export const regenerateDailySnapshots = async (portfolio) => {
   while (currentDate <= today) {
     const dateStr = currentDate.toISOString().split('T')[0];
     
-    // 🔥 この日時点での保有銘柄を特定（購入日 <= 現在日）
+    // この日時点での保有銘柄を特定（購入日 <= 現在日）
     const assetsOnDate = portfolio.filter(asset => {
       const purchaseDate = new Date(asset.purchaseDate);
       return purchaseDate <= currentDate;
@@ -494,8 +504,30 @@ export const regenerateDailySnapshots = async (portfolio) => {
       continue;
     }
     
-    // この日の為替レートを取得
-    const exchangeRate = await getClosestExchangeRate(dateStr) || 150;
+    // 🔥 修正: 為替レートを直接DBから取得（無限再帰を防ぐ）
+    let exchangeRate = 150;
+    try {
+      // 前後3日以内の最も近い為替レートを取得
+      const targetTime = currentDate.getTime();
+      const rates = await db.exchangeRates
+        .where('date')
+        .between(
+          new Date(targetTime - 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          new Date(targetTime + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+        )
+        .toArray();
+      
+      if (rates.length > 0) {
+        const closest = rates.reduce((prev, curr) => {
+          const prevDiff = Math.abs(new Date(prev.date).getTime() - targetTime);
+          const currDiff = Math.abs(new Date(curr.date).getTime() - targetTime);
+          return currDiff < prevDiff ? curr : prev;
+        });
+        exchangeRate = closest.rate;
+      }
+    } catch (error) {
+      console.error(`為替レート取得エラー (${dateStr}):`, error);
+    }
     
     // 各銘柄のこの日の価格と実質保有数量を計算
     let totalValueJPY = 0;
@@ -504,18 +536,16 @@ export const regenerateDailySnapshots = async (portfolio) => {
     let hasData = false;
     
     for (const asset of assetsOnDate) {
-      // 🔥 この日時点での売却済み数量を計算
+      // この日時点での売却済み数量を計算
       const soldQuantityOnDate = sellHistory
         .filter(record => {
-          // この銘柄の売却記録のみ
           if (record.originalAssetId !== asset.id) return false;
-          // この日より前または同日に売却されたもの
           const sellDate = new Date(record.sellDate);
           return sellDate <= currentDate;
         })
         .reduce((sum, record) => sum + record.quantity, 0);
       
-      // 🔥 実質保有数量 = 元の数量 - この日までの売却数量
+      // 実質保有数量 = 元の数量 - この日までの売却数量
       const activeQuantity = asset.quantity - soldQuantityOnDate;
       
       // 完全売却済みの場合はスキップ
@@ -523,19 +553,35 @@ export const regenerateDailySnapshots = async (portfolio) => {
         continue;
       }
       
-      // DBから最も近い日の価格を取得
-      const priceData = await getClosestPrice(asset.symbol || asset.isinCd, dateStr);
+      // 🔥 修正: DBから直接価格を取得（無限再帰を防ぐ）
+      let price = asset.purchasePrice; // デフォルト値
       
-      let price = null;
-      if (priceData) {
-        price = priceData.price;
-        hasData = true;
-      } else {
-        // データがなければ取得単価を使用
-        price = asset.purchasePrice;
+      try {
+        // 前後3日以内の最も近い価格を取得
+        const targetTime = currentDate.getTime();
+        const priceKey = asset.symbol || asset.isinCd;
+        const prices = await db.priceHistory
+          .where('[symbol+date]')
+          .between(
+            [priceKey, new Date(targetTime - 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]],
+            [priceKey, new Date(targetTime + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]]
+          )
+          .toArray();
+        
+        if (prices.length > 0) {
+          const closest = prices.reduce((prev, curr) => {
+            const prevDiff = Math.abs(new Date(prev.date).getTime() - targetTime);
+            const currDiff = Math.abs(new Date(curr.date).getTime() - targetTime);
+            return currDiff < prevDiff ? curr : prev;
+          });
+          price = closest.price;
+          hasData = true;
+        }
+      } catch (error) {
+        console.error(`価格取得エラー (${asset.name} @ ${dateStr}):`, error);
       }
       
-      // 🔥 実質保有数量で価値を計算
+      // 実質保有数量で価値を計算
       const value = asset.currency === 'USD' 
         ? price * activeQuantity * exchangeRate
         : price * activeQuantity;

@@ -1,4 +1,4 @@
-// src/components/AddAssetModal.jsx
+// src/components/AddAssetModal.jsx (改善版)
 import { useState } from 'react';
 import { AlertCircle, CheckCircle, Loader } from 'lucide-react';
 
@@ -110,12 +110,15 @@ export default function AddAssetModal({ onClose, onAdd, addNotification }) {
           setValidationStatus('valid');
           setValidationMessage(`✓ 確認完了: ${result.currency} ${result.price.toLocaleString()}`);
           
-          // 通貨を自動設定
-          setFormData(prev => ({ 
-            ...prev, 
-            currency: result.currency,
-            purchasePrice: !prev.purchasePrice ? result.price.toString() : prev.purchasePrice
-          }));
+          // 🔥 改善: 通貨がまだJPYのままの場合のみ上書き
+          setFormData(prev => {
+            const shouldUpdateCurrency = prev.currency === 'JPY' || prev.type === 'fund';
+            return {
+              ...prev, 
+              currency: shouldUpdateCurrency ? result.currency : prev.currency,
+              purchasePrice: !prev.purchasePrice ? result.price.toString() : prev.purchasePrice
+            };
+          });
         } else {
           throw new Error('価格情報を取得できませんでした');
         }
@@ -129,7 +132,7 @@ export default function AddAssetModal({ onClose, onAdd, addNotification }) {
 
   const handleSubmit = async () => {
     if (!formData.name || !formData.quantity || !formData.purchaseDate) {
-      addNotification('必須項目を入力してください（銘柄名、数量、購入日）', 'warning');
+      addNotification('必須項目を入力してください(銘柄名、数量、購入日)', 'warning');
       return;
     }
     
@@ -140,6 +143,23 @@ export default function AddAssetModal({ onClose, onAdd, addNotification }) {
     
     if (formData.type !== 'fund' && !formData.symbol) {
       addNotification('ティッカーシンボルを入力してください', 'warning');
+      return;
+    }
+
+    // 🔥 改善: 購入日が未来でないかチェック
+    const purchaseDate = new Date(formData.purchaseDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    if (purchaseDate > today) {
+      addNotification('購入日が未来の日付になっています', 'warning');
+      return;
+    }
+
+    // 🔥 改善: 数量が負の値でないかチェック
+    const quantity = parseFloat(formData.quantity);
+    if (isNaN(quantity) || quantity <= 0) {
+      addNotification('数量は正の数値を入力してください', 'warning');
       return;
     }
 
@@ -162,6 +182,12 @@ export default function AddAssetModal({ onClose, onAdd, addNotification }) {
     }
     
     let purchasePrice = formData.purchasePrice ? parseFloat(formData.purchasePrice) : null;
+    
+    // 🔥 改善: 取得単価のバリデーション
+    if (purchasePrice && (isNaN(purchasePrice) || purchasePrice <= 0)) {
+      addNotification('取得単価は正の数値を入力してください', 'warning');
+      return;
+    }
     
     if (!purchasePrice) {
       addNotification('購入日の価格を取得しています...', 'info');
@@ -191,7 +217,7 @@ export default function AddAssetModal({ onClose, onAdd, addNotification }) {
       type: formData.type,
       symbol: formData.symbol,
       name: formData.name,
-      quantity: parseFloat(formData.quantity),
+      quantity: quantity,
       purchasePrice: purchasePrice,
       currentPrice: purchasePrice,
       currency: formData.currency,
@@ -310,7 +336,7 @@ export default function AddAssetModal({ onClose, onAdd, addNotification }) {
 
           {/* タグ機能 */}
           <div className="form-group">
-            <label>タグ <small>（分析用。複数設定可能）</small></label>
+            <label>タグ <small>(分析用。複数設定可能)</small></label>
             <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
               <input 
                 type="text" 
@@ -353,7 +379,9 @@ export default function AddAssetModal({ onClose, onAdd, addNotification }) {
               name="purchaseDate" 
               value={formData.purchaseDate} 
               onChange={handleInputChange} 
+              max={new Date().toISOString().split('T')[0]}
             />
+            <small className="form-hint">※未来の日付は選択できません</small>
           </div>
 
           <div className="form-row">
@@ -365,6 +393,7 @@ export default function AddAssetModal({ onClose, onAdd, addNotification }) {
                 value={formData.quantity} 
                 onChange={handleInputChange} 
                 step="0.00000001" 
+                min="0.00000001"
                 placeholder="100" 
               />
             </div>
@@ -376,6 +405,7 @@ export default function AddAssetModal({ onClose, onAdd, addNotification }) {
                 value={formData.purchasePrice} 
                 onChange={handleInputChange} 
                 step="0.01" 
+                min="0.01"
                 placeholder="空欄で自動取得" 
               />
             </div>
