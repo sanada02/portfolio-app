@@ -1,42 +1,163 @@
 // src/utils/storage.js
+const PORTFOLIO_KEY = 'portfolio_data';
+const SELL_HISTORY_KEY = 'sell_history';
 
-export const getPortfolio = () => {
-  const data = localStorage.getItem('portfolio');
-  return data ? JSON.parse(data) : [];
-};
-
-export const savePortfolio = (portfolio) => {
-  localStorage.setItem('portfolio', JSON.stringify(portfolio));
-};
-
+// 資産タイプの表示名
 export const assetTypeNames = {
   stock: '株式',
-  etf: 'ETF',
   fund: '投資信託',
-  crypto: '仮想通貨'
+  etf: 'ETF',
+  crypto: '暗号通貨',
+  other: 'その他'
 };
 
-export const CHART_COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
+// ポートフォリオの読み込み
+export const loadPortfolio = () => {
+  try {
+    const saved = localStorage.getItem(PORTFOLIO_KEY);
+    return saved ? JSON.parse(saved) : [];
+  } catch (error) {
+    console.error('ポートフォリオの読み込みエラー:', error);
+    return [];
+  }
+};
 
-// 既存のコードの最後に追加
+// ポートフォリオの保存
+export const savePortfolio = (portfolio) => {
+  try {
+    localStorage.setItem(PORTFOLIO_KEY, JSON.stringify(portfolio));
+    return true;
+  } catch (error) {
+    console.error('ポートフォリオの保存エラー:', error);
+    return false;
+  }
+};
 
+// 売却履歴の読み込み
 export const getSellHistory = () => {
-  const data = localStorage.getItem('sellHistory');
-  return data ? JSON.parse(data) : [];
+  try {
+    const saved = localStorage.getItem(SELL_HISTORY_KEY);
+    return saved ? JSON.parse(saved) : [];
+  } catch (error) {
+    console.error('売却履歴の読み込みエラー:', error);
+    return [];
+  }
 };
 
-export const saveSellHistory = (history) => {
-  localStorage.setItem('sellHistory', JSON.stringify(history));
+// 売却履歴の保存
+export const saveSellHistory = (sellHistory) => {
+  try {
+    localStorage.setItem(SELL_HISTORY_KEY, JSON.stringify(sellHistory));
+    return true;
+  } catch (error) {
+    console.error('売却履歴の保存エラー:', error);
+    return false;
+  }
 };
 
+// 売却記録を追加
 export const addSellRecord = (record) => {
-  const history = getSellHistory();
-  history.push(record);
-  saveSellHistory(history);
+  try {
+    const history = getSellHistory();
+    const newRecord = {
+      id: Date.now().toString(),
+      timestamp: new Date().toISOString(),
+      ...record
+    };
+    history.push(newRecord);
+    saveSellHistory(history);
+    return newRecord;
+  } catch (error) {
+    console.error('売却記録の追加エラー:', error);
+    return null;
+  }
 };
 
-export const deleteSellRecord = (id) => {
-  const history = getSellHistory();
-  const updatedHistory = history.filter(record => record.id !== id);
-  saveSellHistory(updatedHistory);
+// 特定の資産IDの売却履歴を取得
+export const getSellHistoryByAssetId = (assetId) => {
+  try {
+    const history = getSellHistory();
+    return history.filter(record => record.originalAssetId === assetId);
+  } catch (error) {
+    console.error('売却履歴の取得エラー:', error);
+    return [];
+  }
+};
+
+// 売却履歴をクリア
+export const clearSellHistory = () => {
+  try {
+    localStorage.removeItem(SELL_HISTORY_KEY);
+    return true;
+  } catch (error) {
+    console.error('売却履歴のクリアエラー:', error);
+    return false;
+  }
+};
+
+// すべてのデータをクリア
+export const clearAllData = () => {
+  try {
+    localStorage.removeItem(PORTFOLIO_KEY);
+    localStorage.removeItem(SELL_HISTORY_KEY);
+    return true;
+  } catch (error) {
+    console.error('データのクリアエラー:', error);
+    return false;
+  }
+};
+
+// データのエクスポート
+export const exportData = () => {
+  try {
+    const portfolio = loadPortfolio();
+    const sellHistory = getSellHistory();
+    return {
+      portfolio,
+      sellHistory,
+      exportDate: new Date().toISOString()
+    };
+  } catch (error) {
+    console.error('データのエクスポートエラー:', error);
+    return null;
+  }
+};
+
+// データのインポート
+export const importData = (data) => {
+  try {
+    if (data.portfolio) {
+      savePortfolio(data.portfolio);
+    }
+    if (data.sellHistory) {
+      saveSellHistory(data.sellHistory);
+    }
+    return true;
+  } catch (error) {
+    console.error('データのインポートエラー:', error);
+    return false;
+  }
+};
+
+// ユーティリティ: IDの生成
+export const generateId = () => {
+  return `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+};
+
+// ユーティリティ: 資産の検索
+export const findAssetById = (portfolio, assetId) => {
+  return portfolio.find(asset => asset.id === assetId);
+};
+
+// ユーティリティ: 資産の重複チェック
+export const isDuplicateAsset = (portfolio, symbol, isinCd) => {
+  return portfolio.some(asset => {
+    if (symbol) {
+      return asset.symbol === symbol;
+    }
+    if (isinCd) {
+      return asset.isinCd === isinCd;
+    }
+    return false;
+  });
 };
