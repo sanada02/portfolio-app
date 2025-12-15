@@ -1,10 +1,10 @@
 // src/components/TagComparisonChart.jsx
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 import { calculateAssetValue } from '../utils/calculations';
 import { getTags, getTagColor } from '../utils/tags';
 
-export default function TagComparisonChart({ portfolio, exchangeRate }) {
+export default function TagComparisonChart({ portfolio, sellHistory = [], exchangeRate }) {
   const [selectedTag, setSelectedTag] = useState('');
   const tags = getTags();
 
@@ -12,15 +12,25 @@ export default function TagComparisonChart({ portfolio, exchangeRate }) {
     return null;
   }
 
-  // 選択されたタグの銘柄データを取得
-  const getTagAssets = (tagName) => {
+  // 選択されたタグの銘柄データを取得 - メモ化
+  const chartData = useMemo(() => {
+    if (!selectedTag) {
+      return [];
+    }
+    
     const assetMap = new Map();
     
     portfolio
-      .filter(asset => asset.tags?.includes(tagName))
+      .filter(asset => asset.tags?.includes(selectedTag))
       .forEach(asset => {
+        const value = calculateAssetValue(asset, sellHistory, exchangeRate);
+        
+        // 完全売却済みはスキップ
+        if (value <= 0) {
+          return;
+        }
+        
         const key = asset.symbol || asset.isinCd;
-        const value = calculateAssetValue(asset, exchangeRate);
         const purchaseValue = asset.currency === 'USD' 
           ? asset.purchasePrice * asset.quantity * exchangeRate
           : asset.purchasePrice * asset.quantity;
@@ -44,9 +54,7 @@ export default function TagComparisonChart({ portfolio, exchangeRate }) {
     
     return Array.from(assetMap.values())
       .sort((a, b) => b.value - a.value);
-  };
-
-  const chartData = selectedTag ? getTagAssets(selectedTag) : [];
+  }, [portfolio, sellHistory, exchangeRate, selectedTag]);
 
   return (
     <div className="section">

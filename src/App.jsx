@@ -112,11 +112,9 @@ function App() {
   };
 
   const handleSaveEdit = (updatedAsset) => {
-    // 同一銘柄の全てにタグを適用
     const identifier = updatedAsset.symbol || updatedAsset.isinCd;
     let updatedPortfolio = updateAssetTags(portfolio, identifier, updatedAsset.tags);
     
-    // その他の変更を反映
     updatedPortfolio = updatedPortfolio.map(asset => 
       asset.id === updatedAsset.id ? updatedAsset : asset
     );
@@ -181,9 +179,9 @@ function App() {
     addNotification('売却記録を削除しました', 'success');
   };
 
-  const totalValueJPY = calculateTotalValue(portfolio, exchangeRate);
-  const totalValueUSD = calculateTotalValueUSD(portfolio);
-  const totalProfitLoss = calculateTotalProfitLoss(portfolio, exchangeRate);
+  const totalValueJPY = calculateTotalValue(portfolio, sellHistory, exchangeRate);
+  const totalValueUSD = calculateTotalValueUSD(portfolio, sellHistory);
+  const totalProfitLoss = calculateTotalProfitLoss(portfolio, sellHistory, exchangeRate);
 
   return (
     <div className="app">
@@ -222,27 +220,26 @@ function App() {
 
         <TrendChart dailyHistory={dailyHistory} />
 
-        <div className="content-grid">
-          <AssetChart portfolio={portfolio} exchangeRate={exchangeRate} />
+        <AssetChart portfolio={portfolio} sellHistory={sellHistory} exchangeRate={exchangeRate} />
 
-          <div className="section">
-            <div className="section-header">
-              <h2>保有銘柄</h2>
-              <button className="btn-primary" onClick={() => setIsModalOpen(true)}>
-                <Plus size={20} />銘柄を追加
-              </button>
-            </div>
-            <PortfolioTable
-              portfolio={portfolio}
-              exchangeRate={exchangeRate}
-              onEdit={handleEditAsset}
-              onDelete={handleDeleteAsset}
-              onSell={handleSellAsset}
-            />
+        <div className="section">
+          <div className="section-header">
+            <h2>保有銘柄</h2>
+            <button className="btn-primary" onClick={() => setIsModalOpen(true)}>
+              <Plus size={20} />銘柄を追加
+            </button>
           </div>
+          <PortfolioTable
+            portfolio={portfolio}
+            sellHistory={sellHistory}
+            exchangeRate={exchangeRate}
+            onEdit={handleEditAsset}
+            onDelete={handleDeleteAsset}
+            onSell={handleSellAsset}
+          />
         </div>
 
-        <TagComparisonChart portfolio={portfolio} exchangeRate={exchangeRate} />
+        <TagComparisonChart portfolio={portfolio} sellHistory={sellHistory} exchangeRate={exchangeRate} />
       </main>
 
       {isModalOpen && (
@@ -265,6 +262,7 @@ function App() {
       {isSellModalOpen && sellingAsset && (
         <SellAssetModal
           asset={sellingAsset}
+          sellHistory={sellHistory}
           exchangeRate={exchangeRate}
           onClose={() => setIsSellModalOpen(false)}
           onSell={handleCompleteSell}
