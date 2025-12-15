@@ -1,8 +1,7 @@
 // src/components/SettingsModal.jsx
-import { useState, useRef } from 'react';
+import { useRef } from 'react';
 import { Download, Upload, History } from 'lucide-react';
 import { exportBackup, importBackup, clearAllData } from '../utils/backup';
-import { saveDailySnapshot } from '../utils/database';
 
 export default function SettingsModal({ 
   onClose, 
@@ -94,28 +93,6 @@ export default function SettingsModal({
     }
   };
 
-  const handleGenerateTestData = async () => {
-    try {
-      const baseValue = 1000000;
-      
-      for (let i = 10; i >= 0; i--) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        const dateStr = date.toISOString().split('T')[0];
-        const randomChange = (Math.random() - 0.5) * 0.1;
-        const value = Math.round(baseValue * (1 + randomChange * i / 10));
-        
-        await saveDailySnapshot(dateStr, value, 0, { stock: value * 0.6, crypto: value * 0.4 });
-      }
-      
-      await loadDailyHistory();
-      addNotification('テストデータを追加しました！', 'success');
-      onClose();
-    } catch (error) {
-      addNotification('テストデータの追加に失敗しました: ' + error.message, 'error');
-    }
-  };
-
   const handleCheckDatabase = async () => {
     const db = (await import('../utils/database')).default;
     const priceCount = await db.priceHistory.count();
@@ -145,18 +122,10 @@ export default function SettingsModal({
         
         <div className="settings-section">
           <h3>📈 履歴データ</h3>
-          <p className="settings-description">購入日から現在までの全履歴データを取得し、日次グラフを生成します</p>
+          <p className="settings-description">購入日から現在までの全履歴データを取得し、日次グラフを生成します（売却も反映されます）</p>
           <button className="btn-primary" onClick={handleRebuildHistory} disabled={isUpdating}>
             <History size={20} />
             {isUpdating ? '処理中...' : '履歴を再構築'}
-          </button>
-        </div>
-
-        <div className="settings-section">
-          <h3>🧪 テストデータ</h3>
-          <p className="settings-description">開発用: 過去10日分のテストデータを生成します</p>
-          <button className="btn-secondary" onClick={handleGenerateTestData}>
-            テストデータを生成
           </button>
         </div>
 

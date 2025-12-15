@@ -2,11 +2,40 @@
 import { useState } from 'react';
 
 export default function EditAssetModal({ asset, onClose, onSave, addNotification }) {
-  const [editingAsset, setEditingAsset] = useState({...asset});
+  const [editingAsset, setEditingAsset] = useState({
+    ...asset,
+    tags: asset.tags || []
+  });
+  const [currentTag, setCurrentTag] = useState('');
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setEditingAsset(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleAddTag = () => {
+    const tag = currentTag.trim();
+    if (tag && !editingAsset.tags.includes(tag)) {
+      setEditingAsset(prev => ({
+        ...prev,
+        tags: [...prev.tags, tag]
+      }));
+      setCurrentTag('');
+    }
+  };
+
+  const handleRemoveTag = (tagToRemove) => {
+    setEditingAsset(prev => ({
+      ...prev,
+      tags: prev.tags.filter(tag => tag !== tagToRemove)
+    }));
+  };
+
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleAddTag();
+    }
   };
 
   const handleSubmit = () => {
@@ -19,7 +48,8 @@ export default function EditAssetModal({ asset, onClose, onSave, addNotification
       ...editingAsset,
       quantity: parseFloat(editingAsset.quantity),
       purchasePrice: parseFloat(editingAsset.purchasePrice),
-      currentPrice: editingAsset.currentPrice ? parseFloat(editingAsset.currentPrice) : editingAsset.purchasePrice
+      currentPrice: editingAsset.currentPrice ? parseFloat(editingAsset.currentPrice) : editingAsset.purchasePrice,
+      applyTagsToAll: true // 🔥 同一銘柄にタグを適用するフラグ
     };
     
     onSave(updatedAsset);
@@ -33,6 +63,44 @@ export default function EditAssetModal({ asset, onClose, onSave, addNotification
           <div className="form-group">
             <label>銘柄名</label>
             <input type="text" value={editingAsset.name} disabled className="disabled-input" />
+          </div>
+
+          {/* タグ機能 */}
+          <div className="form-group">
+            <label>タグ <small>（分析用。複数設定可能）</small></label>
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+              <input 
+                type="text" 
+                value={currentTag}
+                onChange={(e) => setCurrentTag(e.target.value)}
+                onKeyPress={handleKeyPress}
+                placeholder="例: 金, 半導体, 新興国, etc."
+                style={{ flex: 1 }}
+              />
+              <button 
+                type="button" 
+                className="btn-secondary" 
+                onClick={handleAddTag}
+                style={{ whiteSpace: 'nowrap' }}
+              >
+                追加
+              </button>
+            </div>
+            {editingAsset.tags.length > 0 && (
+              <div className="tag-list">
+                {editingAsset.tags.map(tag => (
+                  <span 
+                    key={tag} 
+                    className="tag-badge"
+                    onClick={() => handleRemoveTag(tag)}
+                    style={{ cursor: 'pointer' }}
+                    title="クリックで削除"
+                  >
+                    {tag} ×
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
           
           <div className="form-group">

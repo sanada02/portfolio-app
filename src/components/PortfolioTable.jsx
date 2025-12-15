@@ -101,6 +101,15 @@ export default function PortfolioTable({ portfolio, sellHistory, exchangeRate, o
                     <div>
                       <div className="asset-name">{assets[0].name}</div>
                       <div className="asset-symbol">{assets[0].symbol || assets[0].isinCd}</div>
+                      {assets[0].tags && assets[0].tags.length > 0 && (
+                        <div className="tag-list" style={{marginTop: '0.5rem'}}>
+                          {assets[0].tags.map(tag => (
+                            <span key={tag} className="tag-badge" style={{fontSize: '0.75rem'}}>
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </td>
                   <td>

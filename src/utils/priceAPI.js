@@ -1,5 +1,6 @@
 // src/utils/priceAPI.js
 import { getCache, setCache, savePriceHistory, getPriceByDate, getClosestPrice, saveExchangeRate, getExchangeRate as getExchangeRateFromDB, saveDailySnapshot } from './database';
+import { getSellHistory } from './storage';
 
 // プロキシサーバーのURL
 const PROXY_URL = 'http://localhost:3001';
@@ -124,7 +125,6 @@ export const getHistoricalPrices = async (symbol, days = 30) => {
 // 投資信託 CSV API（プロキシ経由）
 // ===========================
 
-// 投資信託 CSV API（プロキシ経由） - 全履歴を保存
 export const getFundPrice = async (isinCd, associFundCd) => {
   const cacheKey = `fund_${isinCd}`;
   
@@ -189,7 +189,7 @@ export const getFundPrice = async (isinCd, associFundCd) => {
           const day = dateMatch[3].padStart(2, '0');
           date = `${year}-${month}-${day}`;
         } else {
-          continue; // 解析できない行はスキップ
+          continue;
         }
       }
       
@@ -253,7 +253,6 @@ export const getExchangeRate = async () => {
   }
 };
 
-// 為替レート履歴を取得
 export const getExchangeRateHistory = async (startDate, endDate = null) => {
   try {
     const end = endDate ? new Date(endDate) : new Date();
@@ -303,16 +302,14 @@ export const getExchangeRateHistory = async (startDate, endDate = null) => {
 };
 
 // ===========================
-// 全履歴取得（購入日の価格取得用）
+// 全履歴取得
 // ===========================
 
-// 指定期間の履歴を取得（最大5年分）
 export const getFullHistoricalPrices = async (symbol, startDate, endDate = null) => {
   try {
     const end = endDate ? new Date(endDate) : new Date();
     const start = new Date(startDate);
     
-    // Unix timestamp に変換
     const period1 = Math.floor(start.getTime() / 1000);
     const period2 = Math.floor(end.getTime() / 1000);
     
@@ -357,34 +354,29 @@ export const getFullHistoricalPrices = async (symbol, startDate, endDate = null)
   }
 };
 
-// 特定日の価格を取得（キャッシュ or API）
 export const getPriceAtDate = async (symbol, date) => {
   const cacheKey = `price_${symbol}_${date}`;
   
-  // キャッシュチェック
   const cached = await getCache(cacheKey);
   if (cached) {
     console.log(`✓ キャッシュから取得: ${symbol} @ ${date}`);
     return cached;
   }
   
-  // DBから取得を試みる
   const dbPrice = await getPriceByDate(symbol, date);
   if (dbPrice) {
     console.log(`✓ DBから取得: ${symbol} @ ${date} = ${dbPrice.currency} ${dbPrice.price}`);
     return { price: dbPrice.price, currency: dbPrice.currency };
   }
   
-  // DBにない場合は履歴を取得
   console.log(`⏳ ${symbol}: ${date}の価格を取得するため履歴をダウンロード中...`);
   
   const purchaseDate = new Date(date);
   const startDate = new Date(purchaseDate);
-  startDate.setMonth(startDate.getMonth() - 1); // 1ヶ月前から
+  startDate.setMonth(startDate.getMonth() - 1);
   
   await getFullHistoricalPrices(symbol, startDate.toISOString().split('T')[0], date);
   
-  // 再度DBから取得
   const closestPrice = await getClosestPrice(symbol, date);
   
   if (closestPrice) {
@@ -400,7 +392,6 @@ export const getPriceAtDate = async (symbol, date) => {
 // 全履歴データの再構築
 // ===========================
 
-// 全銘柄の全期間履歴を取得
 export const rebuildAllHistory = async (portfolio) => {
   console.log('========================================');
   console.log('📊 全履歴データの再構築を開始します');
@@ -410,7 +401,6 @@ export const rebuildAllHistory = async (portfolio) => {
     return { success: false, message: 'ポートフォリオが空です' };
   }
   
-  // 最も古い購入日を特定
   const oldestPurchaseDate = portfolio.reduce((oldest, asset) => {
     const purchaseDate = new Date(asset.purchaseDate);
     return !oldest || purchaseDate < oldest ? purchaseDate : oldest;
@@ -418,7 +408,6 @@ export const rebuildAllHistory = async (portfolio) => {
   
   console.log(`最古の購入日: ${oldestPurchaseDate.toISOString().split('T')[0]}`);
   
-  // まず為替レート履歴を取得（USD銘柄がある場合）
   const hasUSD = portfolio.some(asset => asset.currency === 'USD');
   if (hasUSD) {
     console.log('\n為替レート履歴を取得中...');
@@ -427,17 +416,14 @@ export const rebuildAllHistory = async (portfolio) => {
   
   const errors = [];
   
-  // 各銘柄の全履歴を取得
   for (let i = 0; i < portfolio.length; i++) {
     const asset = portfolio[i];
     console.log(`\n[${i + 1}/${portfolio.length}] ${asset.name} の履歴を取得中...`);
     
     try {
       if (asset.type === 'fund') {
-        // 投資信託: CSV全体から履歴を取得
         await getFundPrice(asset.isinCd, asset.associFundCd);
       } else {
-        // 株式・ETF・仮想通貨: 購入日から現在まで
         const startDate = asset.purchaseDate;
         await getFullHistoricalPrices(asset.symbol, startDate);
       }
@@ -446,7 +432,6 @@ export const rebuildAllHistory = async (portfolio) => {
       errors.push(`${asset.name}: ${error.message}`);
     }
     
-    // API負荷軽減
     await new Promise(resolve => setTimeout(resolve, 1000));
   }
   
@@ -461,7 +446,10 @@ export const rebuildAllHistory = async (portfolio) => {
   };
 };
 
-// 日次スナップショットを再生成
+// ===========================
+// 🔥 日次スナップショットを再生成（売却対応版）
+// ===========================
+
 export const regenerateDailySnapshots = async (portfolio) => {
   console.log('========================================');
   console.log('📊 日次スナップショットの再生成を開始します');
@@ -471,7 +459,11 @@ export const regenerateDailySnapshots = async (portfolio) => {
     return { success: false, message: 'ポートフォリオが空です' };
   }
   
-  // インポート文を削除（既にファイル先頭でインポート済み）
+  // 売却履歴を取得
+  const sellHistory = getSellHistory();
+  
+  // 動的インポート
+  const { getClosestExchangeRate } = await import('./database');
   
   // 最も古い購入日を特定
   const oldestPurchaseDate = portfolio.reduce((oldest, asset) => {
@@ -491,7 +483,7 @@ export const regenerateDailySnapshots = async (portfolio) => {
   while (currentDate <= today) {
     const dateStr = currentDate.toISOString().split('T')[0];
     
-    // この日時点での保有銘柄を特定
+    // 🔥 この日時点での保有銘柄を特定（購入日 <= 現在日）
     const assetsOnDate = portfolio.filter(asset => {
       const purchaseDate = new Date(asset.purchaseDate);
       return purchaseDate <= currentDate;
@@ -502,22 +494,39 @@ export const regenerateDailySnapshots = async (portfolio) => {
       continue;
     }
     
-    // この日の為替レートを取得（動的インポート）
-    const { getClosestExchangeRate } = await import('./database');
+    // この日の為替レートを取得
     const exchangeRate = await getClosestExchangeRate(dateStr) || 150;
     
-    // 各銘柄のこの日の価格を取得
+    // 各銘柄のこの日の価格と実質保有数量を計算
     let totalValueJPY = 0;
     let totalValueUSD = 0;
     const breakdown = {};
     let hasData = false;
     
     for (const asset of assetsOnDate) {
-      let price = null;
+      // 🔥 この日時点での売却済み数量を計算
+      const soldQuantityOnDate = sellHistory
+        .filter(record => {
+          // この銘柄の売却記録のみ
+          if (record.originalAssetId !== asset.id) return false;
+          // この日より前または同日に売却されたもの
+          const sellDate = new Date(record.sellDate);
+          return sellDate <= currentDate;
+        })
+        .reduce((sum, record) => sum + record.quantity, 0);
+      
+      // 🔥 実質保有数量 = 元の数量 - この日までの売却数量
+      const activeQuantity = asset.quantity - soldQuantityOnDate;
+      
+      // 完全売却済みの場合はスキップ
+      if (activeQuantity <= 0) {
+        continue;
+      }
       
       // DBから最も近い日の価格を取得
       const priceData = await getClosestPrice(asset.symbol || asset.isinCd, dateStr);
       
+      let price = null;
       if (priceData) {
         price = priceData.price;
         hasData = true;
@@ -526,14 +535,15 @@ export const regenerateDailySnapshots = async (portfolio) => {
         price = asset.purchasePrice;
       }
       
+      // 🔥 実質保有数量で価値を計算
       const value = asset.currency === 'USD' 
-        ? price * asset.quantity * exchangeRate
-        : price * asset.quantity;
+        ? price * activeQuantity * exchangeRate
+        : price * activeQuantity;
       
       totalValueJPY += value;
       
       if (asset.currency === 'USD') {
-        totalValueUSD += price * asset.quantity;
+        totalValueUSD += price * activeQuantity;
       }
       
       breakdown[asset.type] = (breakdown[asset.type] || 0) + value;
@@ -566,7 +576,6 @@ export const regenerateDailySnapshots = async (portfolio) => {
 // バッチ更新（全銘柄）
 // ===========================
 
-// バッチ更新（全銘柄）
 export const updateAllPrices = async (portfolio) => {
   console.log('========================================');
   console.log('📊 価格更新を開始します');
@@ -574,7 +583,7 @@ export const updateAllPrices = async (portfolio) => {
   
   const exchangeRate = await getExchangeRate();
   const results = [];
-  const errors = []; // エラーを収集
+  const errors = [];
   
   for (let i = 0; i < portfolio.length; i++) {
     const asset = portfolio[i];

@@ -8,6 +8,7 @@ import Notification from './components/Notification';
 import SummaryCards from './components/SummaryCards';
 import TrendChart from './components/TrendChart';
 import AssetChart from './components/AssetChart';
+import TagAnalysisChart from './components/TagAnalysisChart';
 import PortfolioTable from './components/PortfolioTable';
 import AddAssetModal from './components/AddAssetModal';
 import EditAssetModal from './components/EditAssetModal';
@@ -111,14 +112,41 @@ function App() {
   };
 
   const handleSaveEdit = (updatedAsset) => {
-    const updatedPortfolio = portfolio.map(asset => 
-      asset.id === updatedAsset.id ? updatedAsset : asset
-    );
+    const updatedPortfolio = portfolio.map(asset => {
+      // 同じ銘柄（シンボルまたはISINコードが一致）にタグを適用
+      const isSameAsset = asset.symbol 
+        ? asset.symbol === updatedAsset.symbol 
+        : asset.isinCd === updatedAsset.isinCd;
+      
+      if (isSameAsset && updatedAsset.applyTagsToAll) {
+        // 同一銘柄の場合はタグだけを更新
+        return asset.id === updatedAsset.id 
+          ? updatedAsset 
+          : { ...asset, tags: updatedAsset.tags };
+      } else if (asset.id === updatedAsset.id) {
+        return updatedAsset;
+      }
+      return asset;
+    });
+    
     setPortfolio(updatedPortfolio);
     savePortfolio(updatedPortfolio);
     setIsEditModalOpen(false);
     setEditingAsset(null);
-    addNotification('銘柄を更新しました', 'success');
+    
+    // 同一銘柄が複数ある場合はメッセージを変更
+    const sameAssetCount = portfolio.filter(asset => {
+      const isSame = asset.symbol 
+        ? asset.symbol === updatedAsset.symbol 
+        : asset.isinCd === updatedAsset.isinCd;
+      return isSame;
+    }).length;
+    
+    if (sameAssetCount > 1) {
+      addNotification(`銘柄を更新しました（同一銘柄${sameAssetCount}件にタグを適用）`, 'success');
+    } else {
+      addNotification('銘柄を更新しました', 'success');
+    }
   };
 
   const handleDeleteAsset = (id) => {
@@ -222,6 +250,8 @@ function App() {
         />
 
         <TrendChart dailyHistory={dailyHistory} />
+
+        <TagAnalysisChart portfolio={portfolio} sellHistory={sellHistory} exchangeRate={exchangeRate} />
 
         <div className="content-grid">
           <AssetChart portfolio={portfolio} sellHistory={sellHistory} exchangeRate={exchangeRate} />

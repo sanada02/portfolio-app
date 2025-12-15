@@ -967,6 +967,34 @@ body {
 }
 
 /* ===========================
+   タグバッジ
+   =========================== */
+
+.tag-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  background: #f0f4ff;
+  color: #667eea;
+  border-radius: 16px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  border: 1px solid #e0e7ff;
+  transition: all 0.2s;
+}
+
+.tag-badge:hover {
+  background: #e0e7ff;
+  border-color: #667eea;
+}
+
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+/* ===========================
    レスポンシブ対応
    =========================== */
 
