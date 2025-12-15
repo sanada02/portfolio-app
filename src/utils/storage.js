@@ -34,3 +34,9 @@ export const addSellRecord = (record) => {
   history.push(record);
   saveSellHistory(history);
 };
+
+export const deleteSellRecord = (id) => {
+  const history = getSellHistory();
+  const updatedHistory = history.filter(record => record.id !== id);
+  saveSellHistory(updatedHistory);
+};

@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { Settings, RefreshCw, Plus, History } from 'lucide-react';
 import { updateAllPrices } from './utils/priceAPI';
 import { getDailySnapshots } from './utils/database';
-import { getPortfolio, savePortfolio, getSellHistory, saveSellHistory, addSellRecord } from './utils/storage';
-import { calculateTotalValue, calculateTotalValueUSD, calculateTotalProfitLoss } from './utils/calculations';
+import { getPortfolio, savePortfolio, getSellHistory, saveSellHistory, addSellRecord, deleteSellRecord } from './utils/storage';
+import { calculateTotalValue, calculateTotalValueUSD, calculateTotalProfitLoss, getActiveQuantity } from './utils/calculations';
 import Notification from './components/Notification';
 import SummaryCards from './components/SummaryCards';
 import TrendChart from './components/TrendChart';
@@ -122,12 +122,29 @@ function App() {
   };
 
   const handleDeleteAsset = (id) => {
-    if (window.confirm('この銘柄を削除しますか？')) {
-      const updatedPortfolio = portfolio.filter(asset => asset.id !== id);
-      setPortfolio(updatedPortfolio);
-      savePortfolio(updatedPortfolio);
-      addNotification('銘柄を削除しました', 'success');
+    const asset = portfolio.find(a => a.id === id);
+    
+    // この銘柄に関連する売却記録があるかチェック
+    const relatedSells = sellHistory.filter(record => record.originalAssetId === id);
+    
+    if (relatedSells.length > 0) {
+      if (!window.confirm(`この銘柄には${relatedSells.length}件の売却記録があります。\n銘柄と売却記録の両方を削除しますか？`)) {
+        return;
+      }
+      // 売却記録も削除
+      const updatedSellHistory = sellHistory.filter(record => record.originalAssetId !== id);
+      setSellHistory(updatedSellHistory);
+      saveSellHistory(updatedSellHistory);
+    } else {
+      if (!window.confirm('この銘柄を削除しますか？')) {
+        return;
+      }
     }
+    
+    const updatedPortfolio = portfolio.filter(asset => asset.id !== id);
+    setPortfolio(updatedPortfolio);
+    savePortfolio(updatedPortfolio);
+    addNotification('銘柄を削除しました', 'success');
   };
 
   const handleSellAsset = (asset) => {
@@ -136,25 +153,9 @@ function App() {
   };
 
   const handleCompleteSell = (sellRecord) => {
-    const remainingQuantity = sellingAsset.quantity - sellRecord.quantity;
+    // 🔥 重要: 保有銘柄の数量は変更しない！
+    // 売却記録だけを追加する
     
-    let updatedPortfolio;
-    if (remainingQuantity > 0) {
-      // 一部売却: 数量を減らす
-      updatedPortfolio = portfolio.map(asset =>
-        asset.id === sellingAsset.id 
-          ? { ...asset, quantity: remainingQuantity }
-          : asset
-      );
-    } else {
-      // 全部売却: 削除
-      updatedPortfolio = portfolio.filter(asset => asset.id !== sellingAsset.id);
-    }
-    
-    setPortfolio(updatedPortfolio);
-    savePortfolio(updatedPortfolio);
-    
-    // 売却履歴に記録
     addSellRecord(sellRecord);
     setSellHistory([...sellHistory, sellRecord]);
     
@@ -171,15 +172,19 @@ function App() {
   };
 
   const handleDeleteSellRecord = (id) => {
+    if (!window.confirm('この売却記録を削除しますか？')) {
+      return;
+    }
+    
+    deleteSellRecord(id);
     const updatedHistory = sellHistory.filter(record => record.id !== id);
     setSellHistory(updatedHistory);
-    saveSellHistory(updatedHistory);
     addNotification('売却記録を削除しました', 'success');
   };
 
-  const totalValueJPY = calculateTotalValue(portfolio, exchangeRate);
-  const totalValueUSD = calculateTotalValueUSD(portfolio);
-  const totalProfitLoss = calculateTotalProfitLoss(portfolio, exchangeRate);
+  const totalValueJPY = calculateTotalValue(portfolio, sellHistory, exchangeRate);
+  const totalValueUSD = calculateTotalValueUSD(portfolio, sellHistory);
+  const totalProfitLoss = calculateTotalProfitLoss(portfolio, sellHistory, exchangeRate);
 
   return (
     <div className="app">
@@ -219,7 +224,7 @@ function App() {
         <TrendChart dailyHistory={dailyHistory} />
 
         <div className="content-grid">
-          <AssetChart portfolio={portfolio} exchangeRate={exchangeRate} />
+          <AssetChart portfolio={portfolio} sellHistory={sellHistory} exchangeRate={exchangeRate} />
 
           <div className="section">
             <div className="section-header">
@@ -230,6 +235,7 @@ function App() {
             </div>
             <PortfolioTable
               portfolio={portfolio}
+              sellHistory={sellHistory}
               exchangeRate={exchangeRate}
               onEdit={handleEditAsset}
               onDelete={handleDeleteAsset}
@@ -259,6 +265,7 @@ function App() {
       {isSellModalOpen && sellingAsset && (
         <SellAssetModal
           asset={sellingAsset}
+          sellHistory={sellHistory}
           exchangeRate={exchangeRate}
           onClose={() => setIsSellModalOpen(false)}
           onSell={handleCompleteSell}

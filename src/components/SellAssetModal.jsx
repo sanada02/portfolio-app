@@ -1,7 +1,10 @@
 // src/components/SellAssetModal.jsx
 import { useState } from 'react';
+import { getActiveQuantity } from '../utils/calculations';
 
-export default function SellAssetModal({ asset, onClose, onSell, addNotification, exchangeRate }) {
+export default function SellAssetModal({ asset, sellHistory, onClose, onSell, addNotification, exchangeRate }) {
+  const activeQuantity = getActiveQuantity(asset, sellHistory);
+  
   const [sellData, setSellData] = useState({
     quantity: '',
     sellPrice: asset.currentPrice || asset.purchasePrice,
@@ -22,8 +25,8 @@ export default function SellAssetModal({ asset, onClose, onSell, addNotification
       return;
     }
 
-    if (sellQuantity > asset.quantity) {
-      addNotification('保有数量を超えて売却することはできません', 'warning');
+    if (sellQuantity > activeQuantity) {
+      addNotification(`保有数量(${activeQuantity})を超えて売却することはできません`, 'warning');
       return;
     }
 
@@ -62,13 +65,13 @@ export default function SellAssetModal({ asset, onClose, onSell, addNotification
     onSell(sellRecord);
   };
 
-  const remainingQuantity = asset.quantity - (parseFloat(sellData.quantity) || 0);
   const sellQuantity = parseFloat(sellData.quantity) || 0;
   const sellPrice = parseFloat(sellData.sellPrice) || 0;
   const purchaseValue = asset.purchasePrice * sellQuantity;
   const sellValue = sellPrice * sellQuantity;
   const profit = sellValue - purchaseValue;
   const profitJPY = asset.currency === 'USD' ? profit * exchangeRate : profit;
+  const remainingAfterSell = activeQuantity - sellQuantity;
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -81,8 +84,18 @@ export default function SellAssetModal({ asset, onClose, onSell, addNotification
           </div>
 
           <div className="form-group">
-            <label>保有数量</label>
-            <input type="text" value={`${asset.quantity} ${asset.currency === 'USD' ? '株' : '口'}`} disabled className="disabled-input" />
+            <label>現在の保有数量</label>
+            <input 
+              type="text" 
+              value={`${activeQuantity} ${asset.currency === 'USD' ? '株' : '口'}`} 
+              disabled 
+              className="disabled-input" 
+            />
+            {asset.quantity !== activeQuantity && (
+              <small style={{color: '#f59e0b'}}>
+                ※ 元の数量: {asset.quantity} (売却済み: {(asset.quantity - activeQuantity).toFixed(8)})
+              </small>
+            )}
           </div>
 
           <div className="form-row">
@@ -110,8 +123,8 @@ export default function SellAssetModal({ asset, onClose, onSell, addNotification
                 value={sellData.quantity} 
                 onChange={handleInputChange} 
                 step="0.00000001" 
-                max={asset.quantity}
-                placeholder={`最大: ${asset.quantity}`}
+                max={activeQuantity}
+                placeholder={`最大: ${activeQuantity}`}
               />
             </div>
             <div className="form-group">
@@ -129,8 +142,8 @@ export default function SellAssetModal({ asset, onClose, onSell, addNotification
           {sellQuantity > 0 && (
             <div className="sell-summary">
               <div className="summary-row">
-                <span>残り保有数量:</span>
-                <strong>{remainingQuantity.toFixed(8)}</strong>
+                <span>売却後の保有数量:</span>
+                <strong>{remainingAfterSell.toFixed(8)}</strong>
               </div>
               <div className="summary-row">
                 <span>取得金額:</span>

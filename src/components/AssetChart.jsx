@@ -3,10 +3,16 @@ import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from 'recha
 import { assetTypeNames, CHART_COLORS } from '../utils/storage';
 import { calculateAssetValue } from '../utils/calculations';
 
-export default function AssetChart({ portfolio, exchangeRate }) {
+export default function AssetChart({ portfolio, sellHistory, exchangeRate }) {
   const pieChartData = portfolio.reduce((acc, asset) => {
     const type = asset.type;
-    const value = calculateAssetValue(asset, exchangeRate);
+    const value = calculateAssetValue(asset, sellHistory, exchangeRate);
+    
+    // 完全売却済みの場合はスキップ
+    if (value <= 0) {
+      return acc;
+    }
+    
     const existing = acc.find(item => item.name === assetTypeNames[type]);
     if (existing) {
       existing.value += value;

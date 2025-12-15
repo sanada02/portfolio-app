@@ -2,9 +2,9 @@
 import { useState } from 'react';
 import { Edit2, Trash2, ChevronDown, ChevronRight, Info, TrendingDown } from 'lucide-react';
 import { assetTypeNames } from '../utils/storage';
-import { groupAssetsBySymbol } from '../utils/calculations';
+import { groupAssetsBySymbol, getActiveQuantity } from '../utils/calculations';
 
-export default function PortfolioTable({ portfolio, exchangeRate, onEdit, onDelete, onSell }) {
+export default function PortfolioTable({ portfolio, sellHistory, exchangeRate, onEdit, onDelete, onSell }) {
   const [expandedGroups, setExpandedGroups] = useState({});
   const [expandedDetails, setExpandedDetails] = useState({});
 
@@ -16,9 +16,9 @@ export default function PortfolioTable({ portfolio, exchangeRate, onEdit, onDele
     setExpandedDetails(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const groupedPortfolio = groupAssetsBySymbol(portfolio);
+  const groupedPortfolio = groupAssetsBySymbol(portfolio, sellHistory);
 
-  if (portfolio.length === 0) {
+  if (Object.keys(groupedPortfolio).length === 0) {
     return (
       <p className="empty-message">
         まだ銘柄が登録されていません。<br />
@@ -35,7 +35,7 @@ export default function PortfolioTable({ portfolio, exchangeRate, onEdit, onDele
             <th style={{width: '40px'}}></th>
             <th>種類</th>
             <th>銘柄名</th>
-            <th>合計数量</th>
+            <th>保有数量</th>
             <th>平均取得単価</th>
             <th>現在単価</th>
             <th>評価額</th>
@@ -48,22 +48,24 @@ export default function PortfolioTable({ portfolio, exchangeRate, onEdit, onDele
             const isExpanded = expandedGroups[key];
             const hasMultiple = assets.length > 1;
             
-            // 単一銘柄の場合の詳細表示フラグ
+            // 単一銘柄の詳細表示フラグ
             const singleAssetDetailExpanded = !hasMultiple && expandedDetails[assets[0].id];
             
-            // グループの合計を計算
-            const totalQuantity = assets.reduce((sum, a) => sum + a.quantity, 0);
-            const totalPurchaseValue = assets.reduce((sum, a) => 
-              a.currency === 'USD' 
-                ? sum + (a.purchasePrice * a.quantity * exchangeRate)
-                : sum + (a.purchasePrice * a.quantity)
-            , 0);
-            const avgPurchasePrice = totalPurchaseValue / totalQuantity / (assets[0].currency === 'USD' ? exchangeRate : 1);
+            // グループの合計を計算（実質保有数量を使用）
+            const totalActiveQuantity = assets.reduce((sum, a) => sum + getActiveQuantity(a, sellHistory), 0);
+            const totalPurchaseValue = assets.reduce((sum, a) => {
+              const activeQty = getActiveQuantity(a, sellHistory);
+              return sum + (a.currency === 'USD' 
+                ? a.purchasePrice * activeQty * exchangeRate
+                : a.purchasePrice * activeQty);
+            }, 0);
+            const avgPurchasePrice = totalPurchaseValue / totalActiveQuantity / (assets[0].currency === 'USD' ? exchangeRate : 1);
             
             const currentPriceToUse = assets[0].currentPrice || assets[0].purchasePrice;
             const totalCurrentValue = assets.reduce((sum, a) => {
+              const activeQty = getActiveQuantity(a, sellHistory);
               const price = a.currentPrice || a.purchasePrice;
-              return sum + (a.currency === 'USD' ? price * a.quantity * exchangeRate : price * a.quantity);
+              return sum + (a.currency === 'USD' ? price * activeQty * exchangeRate : price * activeQty);
             }, 0);
             
             const totalProfitLoss = totalCurrentValue - totalPurchaseValue;
@@ -101,14 +103,21 @@ export default function PortfolioTable({ portfolio, exchangeRate, onEdit, onDele
                       <div className="asset-symbol">{assets[0].symbol || assets[0].isinCd}</div>
                     </div>
                   </td>
-                  <td>{totalQuantity}</td>
+                  <td>
+                    {totalActiveQuantity.toFixed(8)}
+                    {assets.reduce((sum, a) => sum + a.quantity, 0) !== totalActiveQuantity && (
+                      <div style={{fontSize: '0.75rem', color: '#999'}}>
+                        (購入: {assets.reduce((sum, a) => sum + a.quantity, 0).toFixed(8)})
+                      </div>
+                    )}
+                  </td>
                   <td>{assets[0].currency === 'USD' ? '$' : '¥'}{avgPurchasePrice.toLocaleString(undefined, {maximumFractionDigits: 2})}</td>
                   <td>{assets[0].currency === 'USD' ? '$' : '¥'}{currentPriceToUse.toLocaleString(undefined, {maximumFractionDigits: 2})}</td>
                   <td>
                     ¥{totalCurrentValue.toLocaleString(undefined, {maximumFractionDigits: 0})}
                     {assets[0].currency === 'USD' && (
                       <div className="currency-original">
-                        ${(totalQuantity * currentPriceToUse).toLocaleString(undefined, {maximumFractionDigits: 2})}
+                        ${(totalActiveQuantity * currentPriceToUse).toLocaleString(undefined, {maximumFractionDigits: 2})}
                       </div>
                     )}
                   </td>
@@ -117,20 +126,20 @@ export default function PortfolioTable({ portfolio, exchangeRate, onEdit, onDele
                     <br /><small>({profitLossPercent >= 0 ? '+' : ''}{profitLossPercent.toFixed(2)}%)</small>
                   </td>
                   <td>
-  {!hasMultiple && (
-    <>
-      <button className="btn-icon btn-sell" onClick={() => onSell(assets[0])} title="売却">
-        <TrendingDown size={16} />
-      </button>
-      <button className="btn-icon" onClick={() => onEdit(assets[0])} title="編集">
-        <Edit2 size={16} />
-      </button>
-      <button className="btn-icon btn-delete" onClick={() => onDelete(assets[0].id)} title="削除">
-        <Trash2 size={16} />
-      </button>
-    </>
-  )}
-</td>
+                    {!hasMultiple && (
+                      <>
+                        <button className="btn-icon btn-sell" onClick={() => onSell(assets[0])} title="売却">
+                          <TrendingDown size={16} />
+                        </button>
+                        <button className="btn-icon" onClick={() => onEdit(assets[0])} title="編集">
+                          <Edit2 size={16} />
+                        </button>
+                        <button className="btn-icon btn-delete" onClick={() => onDelete(assets[0].id)} title="削除">
+                          <Trash2 size={16} />
+                        </button>
+                      </>
+                    )}
+                  </td>
                 </tr>
                 
                 {/* 単一銘柄の詳細表示 */}
@@ -143,6 +152,16 @@ export default function PortfolioTable({ portfolio, exchangeRate, onEdit, onDele
                           <div className="detail-item">
                             <span className="detail-label">購入日:</span>
                             <span className="detail-value">{assets[0].purchaseDate}</span>
+                          </div>
+                          <div className="detail-item">
+                            <span className="detail-label">元の数量:</span>
+                            <span className="detail-value">{assets[0].quantity}</span>
+                          </div>
+                          <div className="detail-item">
+                            <span className="detail-label">売却済み:</span>
+                            <span className="detail-value">
+                              {(assets[0].quantity - getActiveQuantity(assets[0], sellHistory)).toFixed(8)}
+                            </span>
                           </div>
                           {assets[0].symbol && (
                             <div className="detail-item">
@@ -174,9 +193,10 @@ export default function PortfolioTable({ portfolio, exchangeRate, onEdit, onDele
                 
                 {/* 複数銘柄の展開表示 */}
                 {hasMultiple && isExpanded && assets.map((asset) => {
+                  const activeQty = getActiveQuantity(asset, sellHistory);
                   const currentPrice = asset.currentPrice || asset.purchasePrice;
-                  const currentValue = asset.currency === 'USD' ? currentPrice * asset.quantity * exchangeRate : currentPrice * asset.quantity;
-                  const purchaseValue = asset.currency === 'USD' ? asset.purchasePrice * asset.quantity * exchangeRate : asset.purchasePrice * asset.quantity;
+                  const currentValue = asset.currency === 'USD' ? currentPrice * activeQty * exchangeRate : currentPrice * activeQty;
+                  const purchaseValue = asset.currency === 'USD' ? asset.purchasePrice * activeQty * exchangeRate : asset.purchasePrice * activeQty;
                   const profitLoss = currentValue - purchaseValue;
                   const profitPercent = (profitLoss / purchaseValue) * 100;
                   
@@ -187,10 +207,14 @@ export default function PortfolioTable({ portfolio, exchangeRate, onEdit, onDele
                       <td>
                         <div className="detail-info">
                           <small>購入日: {asset.purchaseDate}</small>
+                          <small>元の数量: {asset.quantity}</small>
+                          {asset.quantity !== activeQty && (
+                            <small style={{color: '#f59e0b'}}>売却済み: {(asset.quantity - activeQty).toFixed(8)}</small>
+                          )}
                           {asset.associFundCd && <small>投信協会: {asset.associFundCd}</small>}
                         </div>
                       </td>
-                      <td>{asset.quantity}</td>
+                      <td>{activeQty.toFixed(8)}</td>
                       <td>{asset.currency === 'USD' ? '$' : '¥'}{asset.purchasePrice.toLocaleString(undefined, {maximumFractionDigits: 2})}</td>
                       <td>{asset.currency === 'USD' ? '$' : '¥'}{currentPrice.toLocaleString(undefined, {maximumFractionDigits: 2})}</td>
                       <td>¥{currentValue.toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
@@ -199,16 +223,16 @@ export default function PortfolioTable({ portfolio, exchangeRate, onEdit, onDele
                         <br /><small>({profitPercent >= 0 ? '+' : ''}{profitPercent.toFixed(2)}%)</small>
                       </td>
                       <td>
-  <button className="btn-icon btn-sell" onClick={() => onSell(asset)} title="売却">
-    <TrendingDown size={16} />
-  </button>
-  <button className="btn-icon" onClick={() => onEdit(asset)} title="編集">
-    <Edit2 size={16} />
-  </button>
-  <button className="btn-icon btn-delete" onClick={() => onDelete(asset.id)} title="削除">
-    <Trash2 size={16} />
-  </button>
-</td>
+                        <button className="btn-icon btn-sell" onClick={() => onSell(asset)} title="売却">
+                          <TrendingDown size={16} />
+                        </button>
+                        <button className="btn-icon" onClick={() => onEdit(asset)} title="編集">
+                          <Edit2 size={16} />
+                        </button>
+                        <button className="btn-icon btn-delete" onClick={() => onDelete(asset.id)} title="削除">
+                          <Trash2 size={16} />
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}
