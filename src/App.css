@@ -1049,3 +1049,245 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* ===========================
+   タグ関連スタイル
+   =========================== */
+
+.tag-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.tag-pill {
+  padding: 0.4rem 0.8rem;
+  border-radius: 20px;
+  border: 2px solid transparent;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.tag-pill:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.tag-pill.active {
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.tag-pill-add {
+  padding: 0.4rem 0.8rem;
+  border-radius: 20px;
+  border: 2px dashed #d1d5db;
+  background: white;
+  color: #666;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.tag-pill-add:hover {
+  border-color: #667eea;
+  color: #667eea;
+}
+
+.tag-input-group {
+  display: flex;
+  gap: 0.3rem;
+  align-items: center;
+}
+
+.tag-input {
+  padding: 0.4rem 0.8rem;
+  border: 2px solid #667eea;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  outline: none;
+  min-width: 120px;
+}
+
+.btn-tag-add,
+.btn-tag-cancel {
+  padding: 0.4rem;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.btn-tag-add {
+  background: #667eea;
+  color: white;
+}
+
+.btn-tag-add:hover {
+  background: #5568d3;
+}
+
+.btn-tag-cancel {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.btn-tag-cancel:hover {
+  background: #fecaca;
+}
+
+/* ===========================
+   チャート表示切替
+   =========================== */
+
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.chart-view-selector {
+  display: flex;
+  gap: 0.5rem;
+  background: #f3f4f6;
+  padding: 0.3rem;
+  border-radius: 8px;
+}
+
+.btn-view {
+  padding: 0.5rem 1rem;
+  border: none;
+  background: transparent;
+  color: #666;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.btn-view:hover {
+  background: #e5e7eb;
+}
+
+.btn-view.active {
+  background: white;
+  color: #667eea;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* ===========================
+   タグセレクター
+   =========================== */
+
+.tag-selector {
+  padding: 0.5rem 1rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  background: white;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.tag-selector:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+/* ===========================
+   ポートフォリオテーブル - タグ表示
+   =========================== */
+
+.asset-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.3rem;
+}
+
+.asset-tag-badge {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: white;
+}
+
+/* ===========================
+   モーダルサイズ調整
+   =========================== */
+
+.modal-large {
+  max-width: 900px;
+}
+
+/* ===========================
+   売却履歴のサマリーカード
+   =========================== */
+
+.sell-history-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.sell-history-summary .summary-card {
+  background: #f9fafb;
+  padding: 1rem;
+  border-radius: 8px;
+  border-left: 4px solid #667eea;
+}
+
+.sell-history-summary .summary-card span {
+  display: block;
+  color: #666;
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+}
+
+.sell-history-summary .summary-card strong {
+  display: block;
+  font-size: 1.5rem;
+  color: #333;
+}
+
+/* ===========================
+   レスポンシブ対応
+   =========================== */
+
+@media (max-width: 768px) {
+  .chart-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+  
+  .chart-view-selector {
+    width: 100%;
+  }
+  
+  .btn-view {
+    flex: 1;
+    text-align: center;
+  }
+  
+  .tag-selector {
+    width: 100%;
+  }
+}

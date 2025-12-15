@@ -18,8 +18,6 @@ export const assetTypeNames = {
 
 export const CHART_COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
 
-// 既存のコードの最後に追加
-
 export const getSellHistory = () => {
   const data = localStorage.getItem('sellHistory');
   return data ? JSON.parse(data) : [];
@@ -35,8 +33,13 @@ export const addSellRecord = (record) => {
   saveSellHistory(history);
 };
 
-export const deleteSellRecord = (id) => {
-  const history = getSellHistory();
-  const updatedHistory = history.filter(record => record.id !== id);
-  saveSellHistory(updatedHistory);
+// 銘柄のタグを一括更新（同一symbol/isinCdを持つ全銘柄）
+export const updateAssetTags = (portfolio, symbolOrIsin, tags) => {
+  return portfolio.map(asset => {
+    const identifier = asset.symbol || asset.isinCd;
+    if (identifier === symbolOrIsin) {
+      return { ...asset, tags: tags || [] };
+    }
+    return asset;
+  });
 };

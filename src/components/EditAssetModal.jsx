@@ -1,41 +1,42 @@
 // src/components/EditAssetModal.jsx
 import { useState } from 'react';
+import { X, Plus } from 'lucide-react';
+import { getTags, addTag, getTagColor } from '../utils/tags';
 
 export default function EditAssetModal({ asset, onClose, onSave, addNotification }) {
-  const [editingAsset, setEditingAsset] = useState({
-    ...asset,
-    tags: asset.tags || []
-  });
-  const [currentTag, setCurrentTag] = useState('');
+  const [editingAsset, setEditingAsset] = useState({...asset, tags: asset.tags || []});
+  const [availableTags, setAvailableTags] = useState(getTags());
+  const [newTagName, setNewTagName] = useState('');
+  const [showTagInput, setShowTagInput] = useState(false);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setEditingAsset(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleAddTag = () => {
-    const tag = currentTag.trim();
-    if (tag && !editingAsset.tags.includes(tag)) {
-      setEditingAsset(prev => ({
-        ...prev,
-        tags: [...prev.tags, tag]
-      }));
-      setCurrentTag('');
-    }
+  const handleToggleTag = (tagName) => {
+    const currentTags = editingAsset.tags || [];
+    const newTags = currentTags.includes(tagName)
+      ? currentTags.filter(t => t !== tagName)
+      : [...currentTags, tagName];
+    setEditingAsset(prev => ({ ...prev, tags: newTags }));
   };
 
-  const handleRemoveTag = (tagToRemove) => {
+  const handleAddNewTag = () => {
+    if (!newTagName.trim()) return;
+    
+    const updatedTags = addTag(newTagName.trim());
+    setAvailableTags(updatedTags);
+    
+    // 新しいタグを自動的に選択
     setEditingAsset(prev => ({
       ...prev,
-      tags: prev.tags.filter(tag => tag !== tagToRemove)
+      tags: [...(prev.tags || []), newTagName.trim()]
     }));
-  };
-
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      handleAddTag();
-    }
+    
+    setNewTagName('');
+    setShowTagInput(false);
+    addNotification(`タグ "${newTagName.trim()}" を追加しました`, 'success');
   };
 
   const handleSubmit = () => {
@@ -48,8 +49,7 @@ export default function EditAssetModal({ asset, onClose, onSave, addNotification
       ...editingAsset,
       quantity: parseFloat(editingAsset.quantity),
       purchasePrice: parseFloat(editingAsset.purchasePrice),
-      currentPrice: editingAsset.currentPrice ? parseFloat(editingAsset.currentPrice) : editingAsset.purchasePrice,
-      applyTagsToAll: true // 🔥 同一銘柄にタグを適用するフラグ
+      currentPrice: editingAsset.currentPrice ? parseFloat(editingAsset.currentPrice) : editingAsset.purchasePrice
     };
     
     onSave(updatedAsset);
@@ -64,43 +64,49 @@ export default function EditAssetModal({ asset, onClose, onSave, addNotification
             <label>銘柄名</label>
             <input type="text" value={editingAsset.name} disabled className="disabled-input" />
           </div>
-
-          {/* タグ機能 */}
+          
           <div className="form-group">
-            <label>タグ <small>（分析用。複数設定可能）</small></label>
-            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
-              <input 
-                type="text" 
-                value={currentTag}
-                onChange={(e) => setCurrentTag(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder="例: 金, 半導体, 新興国, etc."
-                style={{ flex: 1 }}
-              />
-              <button 
-                type="button" 
-                className="btn-secondary" 
-                onClick={handleAddTag}
-                style={{ whiteSpace: 'nowrap' }}
-              >
-                追加
-              </button>
+            <label>タグ</label>
+            <div className="tag-container">
+              {availableTags.map(tag => (
+                <button
+                  key={tag.id}
+                  type="button"
+                  className={`tag-pill ${editingAsset.tags?.includes(tag.name) ? 'active' : ''}`}
+                  style={{
+                    backgroundColor: editingAsset.tags?.includes(tag.name) ? tag.color : '#f3f4f6',
+                    color: editingAsset.tags?.includes(tag.name) ? 'white' : '#666'
+                  }}
+                  onClick={() => handleToggleTag(tag.name)}
+                >
+                  {tag.name}
+                </button>
+              ))}
+              
+              {showTagInput ? (
+                <div className="tag-input-group">
+                  <input
+                    type="text"
+                    value={newTagName}
+                    onChange={(e) => setNewTagName(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleAddNewTag()}
+                    placeholder="新しいタグ名"
+                    className="tag-input"
+                    autoFocus
+                  />
+                  <button type="button" onClick={handleAddNewTag} className="btn-tag-add">
+                    <Plus size={16} />
+                  </button>
+                  <button type="button" onClick={() => {setShowTagInput(false); setNewTagName('');}} className="btn-tag-cancel">
+                    <X size={16} />
+                  </button>
+                </div>
+              ) : (
+                <button type="button" className="tag-pill-add" onClick={() => setShowTagInput(true)}>
+                  <Plus size={16} /> 新規タグ
+                </button>
+              )}
             </div>
-            {editingAsset.tags.length > 0 && (
-              <div className="tag-list">
-                {editingAsset.tags.map(tag => (
-                  <span 
-                    key={tag} 
-                    className="tag-badge"
-                    onClick={() => handleRemoveTag(tag)}
-                    style={{ cursor: 'pointer' }}
-                    title="クリックで削除"
-                  >
-                    {tag} ×
-                  </span>
-                ))}
-              </div>
-            )}
           </div>
           
           <div className="form-group">
