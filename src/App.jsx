@@ -1,4 +1,4 @@
-// src/App.jsx (完全修正版 - 全幅レイアウト + タブ機能)
+// src/App.jsx (通知機能追加版)
 import React, { useState, useEffect } from 'react';
 import { loadPortfolio, savePortfolio, getSellHistory } from './utils/storage';
 import { updateAllPrices, rebuildAllHistory, regenerateDailySnapshots } from './utils/priceAPI';
@@ -20,7 +20,7 @@ function App() {
   const [exchangeRate, setExchangeRate] = useState(150);
   const [isLoading, setIsLoading] = useState(false);
   const [snapshotData, setSnapshotData] = useState([]);
-  const [activeTab, setActiveTab] = useState('overview'); // overview, allocation, tags
+  const [activeTab, setActiveTab] = useState('overview');
 
   useEffect(() => {
     const loadedPortfolio = loadPortfolio();
@@ -33,10 +33,17 @@ function App() {
     setSnapshotData(snapshots);
   };
 
+  // 簡易通知関数（alertの代わり）
+  const addNotification = (message, type = 'info') => {
+    console.log(`[${type.toUpperCase()}] ${message}`);
+    alert(message);
+  };
+
   const handleAddAsset = (newAsset) => {
     const updatedPortfolio = [...portfolio, newAsset];
     setPortfolio(updatedPortfolio);
     savePortfolio(updatedPortfolio);
+    addNotification('資産を追加しました', 'success');
   };
 
   const handleEditAsset = (editedAsset) => {
@@ -45,6 +52,7 @@ function App() {
     );
     setPortfolio(updatedPortfolio);
     savePortfolio(updatedPortfolio);
+    addNotification('資産を更新しました', 'success');
   };
 
   const handleDeleteAsset = (assetId) => {
@@ -52,6 +60,7 @@ function App() {
       const updatedPortfolio = portfolio.filter(asset => asset.id !== assetId);
       setPortfolio(updatedPortfolio);
       savePortfolio(updatedPortfolio);
+      addNotification('資産を削除しました', 'success');
     }
   };
 
@@ -69,6 +78,7 @@ function App() {
     setPortfolio(updatedPortfolio);
     savePortfolio(updatedPortfolio);
     loadSnapshots();
+    addNotification('資産を売却しました', 'success');
   };
 
   const handleUpdatePrices = async () => {
@@ -80,15 +90,15 @@ function App() {
       savePortfolio(result.portfolio);
       
       if (result.errors) {
-        alert(`価格更新完了\n\nエラー:\n${result.errors.join('\n')}`);
+        addNotification(`価格更新完了\n\nエラー:\n${result.errors.join('\n')}`, 'warning');
       } else {
-        alert('すべての価格を更新しました！');
+        addNotification('すべての価格を更新しました！', 'success');
       }
       
       await loadSnapshots();
     } catch (error) {
       console.error('価格更新エラー:', error);
-      alert('価格更新中にエラーが発生しました');
+      addNotification('価格更新中にエラーが発生しました', 'error');
     } finally {
       setIsLoading(false);
     }
@@ -104,13 +114,13 @@ function App() {
       const result = await rebuildAllHistory(portfolio);
       
       if (result.errors) {
-        alert(`履歴再構築完了\n\nエラー:\n${result.errors.join('\n')}`);
+        addNotification(`履歴再構築完了\n\nエラー:\n${result.errors.join('\n')}`, 'warning');
       } else {
-        alert(`履歴データの取得が完了しました！\n最古の購入日: ${result.oldestDate}`);
+        addNotification(`履歴データの取得が完了しました！\n最古の購入日: ${result.oldestDate}`, 'success');
       }
     } catch (error) {
       console.error('履歴再構築エラー:', error);
-      alert('履歴再構築中にエラーが発生しました');
+      addNotification('履歴再構築中にエラーが発生しました', 'error');
     } finally {
       setIsLoading(false);
     }
@@ -126,14 +136,14 @@ function App() {
       const result = await regenerateDailySnapshots(portfolio);
       
       if (result.success) {
-        alert(`スナップショット再生成完了！\n${result.snapshotCount}日分のデータを生成しました`);
+        addNotification(`スナップショット再生成完了！\n${result.snapshotCount}日分のデータを生成しました`, 'success');
         await loadSnapshots();
       } else {
-        alert(result.message || 'スナップショット再生成に失敗しました');
+        addNotification(result.message || 'スナップショット再生成に失敗しました', 'error');
       }
     } catch (error) {
       console.error('スナップショット再生成エラー:', error);
-      alert('スナップショット再生成中にエラーが発生しました: ' + error.message);
+      addNotification('スナップショット再生成中にエラーが発生しました: ' + error.message, 'error');
     } finally {
       setIsLoading(false);
     }
@@ -149,7 +159,6 @@ function App() {
     setIsSellModalOpen(true);
   };
 
-  // 売却履歴を考慮した実質保有銘柄のみ計算
   const getActivePortfolio = () => {
     const sellHistory = getSellHistory();
     
@@ -171,7 +180,6 @@ function App() {
 
   const activePortfolio = getActivePortfolio();
 
-  // タグ別集計
   const getTagAnalysis = () => {
     const tagTotals = {};
     
@@ -194,7 +202,6 @@ function App() {
       .sort((a, b) => b.value - a.value);
   };
 
-  // 特定タグでフィルター
   const getAssetsByTag = (selectedTag) => {
     if (!selectedTag) return [];
     
@@ -225,7 +232,6 @@ function App() {
       </header>
 
       <main>
-        {/* 全幅：ポートフォリオテーブル */}
         <section className="portfolio-section">
           <h2>保有銘柄一覧</h2>
           <PortfolioTable
@@ -237,13 +243,11 @@ function App() {
           />
         </section>
 
-        {/* 全幅：パフォーマンスチャート */}
         <section className="performance-section">
           <h2>📈 パフォーマンス推移</h2>
           <PerformanceChart data={snapshotData} />
         </section>
 
-        {/* 全幅：資産配分（タブ付き） */}
         <section className="allocation-section">
           <div className="tabs">
             <button 
@@ -300,7 +304,6 @@ function App() {
                   </p>
                 )}
 
-                {/* タグごとの詳細分析 */}
                 {allTags.length > 0 && (
                   <div className="tag-details" style={{marginTop: '30px'}}>
                     <h3>タグ内訳</h3>
@@ -336,6 +339,7 @@ function App() {
           onClose={() => setIsAddModalOpen(false)}
           onAdd={handleAddAsset}
           exchangeRate={exchangeRate}
+          addNotification={addNotification}
         />
       )}
 
@@ -348,6 +352,7 @@ function App() {
             setSelectedAsset(null);
           }}
           onSave={handleEditAsset}
+          addNotification={addNotification}
         />
       )}
 
@@ -360,6 +365,7 @@ function App() {
           }}
           onSell={handleSellAsset}
           exchangeRate={exchangeRate}
+          addNotification={addNotification}
         />
       )}
     </div>
