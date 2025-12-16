@@ -227,6 +227,16 @@ function App() {
     setIsDetailModalOpen(true);
   };
 
+  // 🔥 個別購入記録の編集
+  const handleEditPurchase = (purchaseRecord) => {
+    // 元のポートフォリオから該当のassetを見つける
+    const originalAsset = portfolio.find(a => a.id === purchaseRecord.id);
+    if (originalAsset) {
+      setSelectedAsset(originalAsset);
+      setIsEditModalOpen(true);
+    }
+  };
+
   const getConsolidatedPortfolio = () => {
     const sellHistory = getSellHistory();
     const consolidated = {};
@@ -249,6 +259,14 @@ function App() {
         
         existing.assetIds.push(asset.id);
         
+        // 🔥 購入履歴を保存
+        existing.purchaseRecords.push({
+          id: asset.id,
+          purchaseDate: asset.purchaseDate,
+          quantity: asset.quantity,
+          purchasePrice: asset.purchasePrice
+        });
+        
         if (asset.tags) {
           existing.tags = [...new Set([...(existing.tags || []), ...asset.tags])];
         }
@@ -261,7 +279,14 @@ function App() {
           ...asset,
           assetIds: [asset.id],
           originalQuantity: asset.quantity,
-          isConsolidated: true
+          isConsolidated: true,
+          // 🔥 購入履歴を初期化
+          purchaseRecords: [{
+            id: asset.id,
+            purchaseDate: asset.purchaseDate,
+            quantity: asset.quantity,
+            purchasePrice: asset.purchasePrice
+          }]
         };
       }
     });
@@ -275,6 +300,11 @@ function App() {
       }, 0);
 
       const activeQuantity = asset.quantity - soldQuantity;
+
+      // 🔥 購入履歴を購入日順にソート
+      if (asset.purchaseRecords) {
+        asset.purchaseRecords.sort((a, b) => new Date(a.purchaseDate) - new Date(b.purchaseDate));
+      }
 
       return {
         ...asset,
@@ -509,6 +539,7 @@ function App() {
             setSelectedAsset(null);
           }}
           exchangeRate={exchangeRate}
+          onEditPurchase={handleEditPurchase}
         />
       )}
     </div>

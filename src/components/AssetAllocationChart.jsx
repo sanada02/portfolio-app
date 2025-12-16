@@ -128,6 +128,8 @@ const AssetAllocationChart = ({ portfolio, exchangeRate, groupBy = 'name' }) => 
             outerRadius={150}
             fill="#8884d8"
             dataKey="value"
+            startAngle={90}
+            endAngle={-270}
           >
             {data.map((entry, index) => (
               <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />

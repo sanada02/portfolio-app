@@ -1,8 +1,10 @@
-// src/components/AssetDetailModal.jsx
-import React from 'react';
+// src/components/AssetDetailModal.jsx (購入履歴追加版)
+import React, { useState } from 'react';
 import { getSellHistory } from '../utils/storage';
 
-const AssetDetailModal = ({ asset, onClose, exchangeRate }) => {
+const AssetDetailModal = ({ asset, onClose, exchangeRate, onEditPurchase }) => {
+  const [expandedSection, setExpandedSection] = useState(null);
+  
   // 統合銘柄の場合は全IDの売却履歴を取得
   const assetIds = asset.assetIds || [asset.id];
   const allSellHistory = getSellHistory();
@@ -19,7 +21,13 @@ const AssetDetailModal = ({ asset, onClose, exchangeRate }) => {
 
   const formatDate = (dateStr) => {
     const date = new Date(dateStr);
-    return date.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' });
+    // 日本時間で表示
+    return date.toLocaleDateString('ja-JP', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric',
+      timeZone: 'Asia/Tokyo'
+    });
   };
 
   const currentPrice = asset.currentPrice || asset.purchasePrice;
@@ -34,6 +42,10 @@ const AssetDetailModal = ({ asset, onClose, exchangeRate }) => {
     if (value > 0) return 'profit-positive';
     if (value < 0) return 'profit-negative';
     return 'profit-neutral';
+  };
+
+  const toggleSection = (section) => {
+    setExpandedSection(expandedSection === section ? null : section);
   };
 
   return (
@@ -84,7 +96,7 @@ const AssetDetailModal = ({ asset, onClose, exchangeRate }) => {
               </div>
             )}
             <div className="detail-item">
-              <label>購入日</label>
+              <label>最初の購入日</label>
               <div className="detail-value">{formatDate(asset.purchaseDate)}</div>
             </div>
             <div className="detail-item">
@@ -103,6 +115,81 @@ const AssetDetailModal = ({ asset, onClose, exchangeRate }) => {
                 <span key={tag} className="tag-badge">{tag}</span>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* 🔥 新機能: 購入履歴 */}
+        {asset.purchaseRecords && asset.purchaseRecords.length > 0 && (
+          <div className="detail-section">
+            <h3 
+              onClick={() => toggleSection('purchases')}
+              style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+            >
+              {expandedSection === 'purchases' ? '▼' : '▶'} 購入履歴 ({asset.purchaseRecords.length}回)
+            </h3>
+            {expandedSection === 'purchases' && (
+              <div style={{ overflowX: 'auto', marginTop: '16px' }}>
+                <table style={{ fontSize: '13px' }}>
+                  <thead>
+                    <tr>
+                      <th>購入日</th>
+                      <th style={{ textAlign: 'right' }}>数量</th>
+                      <th style={{ textAlign: 'right' }}>取得単価</th>
+                      <th style={{ textAlign: 'right' }}>取得額</th>
+                      <th style={{ textAlign: 'center' }}>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {asset.purchaseRecords.map((record, index) => {
+                      const totalCost = record.purchasePrice * record.quantity;
+                      return (
+                        <tr key={record.id || index}>
+                          <td>{formatDate(record.purchaseDate)}</td>
+                          <td style={{ textAlign: 'right' }}>{record.quantity.toLocaleString()}</td>
+                          <td style={{ textAlign: 'right' }}>{formatCurrency(record.purchasePrice, asset.currency)}</td>
+                          <td style={{ textAlign: 'right' }}>{formatCurrency(totalCost, asset.currency)}</td>
+                          <td style={{ textAlign: 'center' }}>
+                            <button
+                              onClick={() => {
+                                onEditPurchase(record);
+                                onClose();
+                              }}
+                              style={{
+                                padding: '4px 12px',
+                                fontSize: '12px',
+                                background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              編集
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ fontWeight: 'bold', background: '#f8f9fa' }}>
+                      <td>合計</td>
+                      <td style={{ textAlign: 'right' }}>
+                        {asset.purchaseRecords.reduce((sum, r) => sum + r.quantity, 0).toLocaleString()}
+                      </td>
+                      <td style={{ textAlign: 'right' }}>-</td>
+                      <td style={{ textAlign: 'right' }}>
+                        {formatCurrency(
+                          asset.purchaseRecords.reduce((sum, r) => sum + (r.purchasePrice * r.quantity), 0),
+                          asset.currency
+                        )}
+                      </td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
           </div>
         )}
 
@@ -136,7 +223,7 @@ const AssetDetailModal = ({ asset, onClose, exchangeRate }) => {
           <h3>価格情報</h3>
           <div className="detail-grid">
             <div className="detail-item">
-              <label>取得単価</label>
+              <label>平均取得単価</label>
               <div className="detail-value">{formatCurrency(asset.purchasePrice, asset.currency)}</div>
             </div>
             <div className="detail-item">
@@ -180,39 +267,46 @@ const AssetDetailModal = ({ asset, onClose, exchangeRate }) => {
         {/* 売却履歴 */}
         {sellHistory.length > 0 && (
           <div className="detail-section">
-            <h3>売却履歴</h3>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ fontSize: '13px' }}>
-                <thead>
-                  <tr>
-                    <th>売却日</th>
-                    <th style={{ textAlign: 'right' }}>数量</th>
-                    <th style={{ textAlign: 'right' }}>売却単価</th>
-                    <th style={{ textAlign: 'right' }}>売却額</th>
-                    <th style={{ textAlign: 'right' }}>損益</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sellHistory.map((record, index) => {
-                    const sellValue = record.sellPrice * record.quantity;
-                    const costValue = asset.purchasePrice * record.quantity;
-                    const sellProfit = sellValue - costValue;
-                    
-                    return (
-                      <tr key={index}>
-                        <td>{formatDate(record.sellDate)}</td>
-                        <td style={{ textAlign: 'right' }}>{record.quantity.toLocaleString()}</td>
-                        <td style={{ textAlign: 'right' }}>{formatCurrency(record.sellPrice, asset.currency)}</td>
-                        <td style={{ textAlign: 'right' }}>{formatCurrency(sellValue, asset.currency)}</td>
-                        <td style={{ textAlign: 'right' }} className={getProfitClass(sellProfit)}>
-                          {sellProfit >= 0 ? '+' : ''}{formatCurrency(sellProfit, asset.currency)}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <h3
+              onClick={() => toggleSection('sales')}
+              style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+            >
+              {expandedSection === 'sales' ? '▼' : '▶'} 売却履歴 ({sellHistory.length}回)
+            </h3>
+            {expandedSection === 'sales' && (
+              <div style={{ overflowX: 'auto', marginTop: '16px' }}>
+                <table style={{ fontSize: '13px' }}>
+                  <thead>
+                    <tr>
+                      <th>売却日</th>
+                      <th style={{ textAlign: 'right' }}>数量</th>
+                      <th style={{ textAlign: 'right' }}>売却単価</th>
+                      <th style={{ textAlign: 'right' }}>売却額</th>
+                      <th style={{ textAlign: 'right' }}>損益</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sellHistory.map((record, index) => {
+                      const sellValue = record.sellPrice * record.quantity;
+                      const costValue = record.purchasePrice * record.quantity;
+                      const sellProfit = sellValue - costValue;
+                      
+                      return (
+                        <tr key={index}>
+                          <td>{formatDate(record.sellDate)}</td>
+                          <td style={{ textAlign: 'right' }}>{record.quantity.toLocaleString()}</td>
+                          <td style={{ textAlign: 'right' }}>{formatCurrency(record.sellPrice, asset.currency)}</td>
+                          <td style={{ textAlign: 'right' }}>{formatCurrency(sellValue, asset.currency)}</td>
+                          <td style={{ textAlign: 'right' }} className={getProfitClass(sellProfit)}>
+                            {sellProfit >= 0 ? '+' : ''}{formatCurrency(sellProfit, asset.currency)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 

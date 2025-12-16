@@ -1,11 +1,12 @@
 // src/components/SellAssetModal.jsx (修正版)
 import React, { useState } from 'react';
 import { addSellRecord } from '../utils/storage';
+import { getTodayJST } from '../utils/dateUtils';
 
 const SellAssetModal = ({ asset, onClose, onSell, exchangeRate, addNotification }) => {
   const [sellQuantity, setSellQuantity] = useState('');
   const [sellPrice, setSellPrice] = useState(asset.currentPrice || asset.purchasePrice);
-  const [sellDate, setSellDate] = useState(new Date().toISOString().split('T')[0]);
+  const [sellDate, setSellDate] = useState(getTodayJST());
 
   const handleSubmit = (e) => {
     e.preventDefault();
