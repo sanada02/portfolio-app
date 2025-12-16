@@ -1,8 +1,10 @@
-// src/App.jsx (購入記録管理機能追加版)
+// src/App.jsx (リファクタリング版)
 import React, { useState, useEffect, useRef } from 'react';
-import { loadPortfolio, savePortfolio, getSellHistory, saveSellHistory, exportData, importData } from './utils/storage';
+import { loadPortfolio, savePortfolio, exportData, importData } from './utils/storage';
 import { updateAllPrices, rebuildAllHistory, regenerateDailySnapshots } from './utils/priceAPI';
 import { getDailySnapshots } from './utils/database';
+import { getConsolidatedPortfolio, getTagAnalysis, getAssetsByTag, getAllUniqueTags } from './utils/portfolioUtils';
+import { usePortfolioHandlers } from './hooks/usePortfolioHandlers';
 import AddAssetModal from './components/AddAssetModal';
 import EditConsolidatedAssetModal from './components/EditConsolidatedAssetModal';
 import EditPurchaseRecordModal from './components/EditPurchaseRecordModal';
@@ -16,6 +18,7 @@ import Toast from './components/Toast';
 import './App.css';
 
 function App() {
+  // ========== State Management ==========
   const [portfolio, setPortfolio] = useState([]);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditConsolidatedModalOpen, setIsEditConsolidatedModalOpen] = useState(false);
@@ -30,14 +33,11 @@ function App() {
   const [snapshotData, setSnapshotData] = useState([]);
   const [activeTab, setActiveTab] = useState('overview');
   const [toasts, setToasts] = useState([]);
-  const fileInputRef = useRef(null);
-  
-  // 🔥 仮想通貨除外フィルター
   const [excludeCrypto, setExcludeCrypto] = useState(false);
-  
-  // 🔥 タグ選択
   const [selectedTags, setSelectedTags] = useState([]);
+  const fileInputRef = useRef(null);
 
+  // ========== Initialize ==========
   useEffect(() => {
     const loadedPortfolio = loadPortfolio();
     setPortfolio(loadedPortfolio);
@@ -49,110 +49,34 @@ function App() {
     setSnapshotData(snapshots);
   };
 
-  // トースト通知を追加
+  // ========== Toast Notifications ==========
   const addNotification = (message, type = 'info') => {
     const id = Date.now();
     setToasts(prev => [...prev, { id, message, type }]);
   };
 
-  // トーストを削除
   const removeToast = (id) => {
     setToasts(prev => prev.filter(toast => toast.id !== id));
   };
 
-  const handleAddAsset = (newAsset) => {
-    const updatedPortfolio = [...portfolio, newAsset];
-    setPortfolio(updatedPortfolio);
-    savePortfolio(updatedPortfolio);
-    addNotification('資産を追加しました', 'success');
-  };
+  // ========== Portfolio Handlers (Custom Hook) ==========
+  const {
+    handleAddAsset,
+    handleEditConsolidatedAsset,
+    handleEditPurchaseRecord,
+    handleDeletePurchase,
+    handleDeleteSellRecord,
+    handleDeleteAsset: deleteAsset,
+    handleSellAsset,
+    handleSaveSellRecord
+  } = usePortfolioHandlers(portfolio, setPortfolio, addNotification, loadSnapshots);
 
-  // 🔥 統合銘柄の編集（全購入記録に適用）
-  const handleEditConsolidatedAsset = (editData) => {
-    const { assetIds, updates } = editData;
-    
-    const updatedPortfolio = portfolio.map(asset => {
-      if (assetIds.includes(asset.id)) {
-        return {
-          ...asset,
-          name: updates.name,
-          symbol: updates.symbol,
-          isinCd: updates.isinCd,
-          associFundCd: updates.associFundCd,
-          currentPrice: updates.currentPrice,
-          tags: updates.tags
-        };
-      }
-      return asset;
-    });
-    
-    setPortfolio(updatedPortfolio);
-    savePortfolio(updatedPortfolio);
-    addNotification('銘柄情報を更新しました', 'success');
-  };
-
-  // 🔥 購入記録の編集
-  const handleEditPurchaseRecord = (editedAsset) => {
-    const updatedPortfolio = portfolio.map(asset => 
-      asset.id === editedAsset.id ? editedAsset : asset
-    );
-    setPortfolio(updatedPortfolio);
-    savePortfolio(updatedPortfolio);
-    addNotification('購入記録を更新しました', 'success');
-  };
-
-  // 🔥 個別購入記録の削除
-  const handleDeletePurchase = (purchaseId) => {
-    if (window.confirm('この購入記録を削除しますか？\n\n注意: この操作は取り消せません。')) {
-      const updatedPortfolio = portfolio.filter(asset => asset.id !== purchaseId);
-      setPortfolio(updatedPortfolio);
-      savePortfolio(updatedPortfolio);
-      addNotification('購入記録を削除しました', 'success');
-    }
-  };
-
-  // 🔥 売却記録の削除
-  const handleDeleteSellRecord = (sellRecordId) => {
-    const allSellHistory = getSellHistory();
-    const updatedHistory = allSellHistory.filter(record => record.id !== sellRecordId);
-    saveSellHistory(updatedHistory);
-    setPortfolio([...portfolio]);
-    loadSnapshots();
-    addNotification('売却記録を削除しました', 'success');
-  };
-
+  // deleteAssetにgetConsolidatedPortfolioを渡すラッパー
   const handleDeleteAsset = (assetId) => {
-    // 統合銘柄の場合はassetIdsを持っている
-    const asset = getConsolidatedPortfolio().find(a => {
-      if (a.assetIds) {
-        return a.assetIds.includes(assetId) || a.id === assetId;
-      }
-      return a.id === assetId;
-    });
-
-    if (!asset) return;
-
-    const assetIdsToDelete = asset.assetIds || [assetId];
-    
-    if (window.confirm(
-      asset.assetIds 
-        ? `「${asset.name}」の全ての購入記録（${asset.assetIds.length}件）を削除しますか？`
-        : `本当にこの資産を削除しますか？`
-    )) {
-      const updatedPortfolio = portfolio.filter(a => !assetIdsToDelete.includes(a.id));
-      setPortfolio(updatedPortfolio);
-      savePortfolio(updatedPortfolio);
-      addNotification('資産を削除しました', 'success');
-    }
+    deleteAsset(assetId, () => getConsolidatedPortfolio(portfolio));
   };
 
-  const handleSellAsset = (soldAsset) => {
-    // portfolioのquantityは変更せず、売却履歴のみで管理
-    setPortfolio([...portfolio]);
-    loadSnapshots();
-    addNotification('資産を売却しました', 'success');
-  };
-
+  // ========== Price & History Updates ==========
   const handleUpdatePrices = async () => {
     setIsLoading(true);
     try {
@@ -209,6 +133,7 @@ function App() {
     }
   };
 
+  // ========== Backup & Import ==========
   const handleExportBackup = () => {
     try {
       const data = exportData();
@@ -274,6 +199,7 @@ function App() {
     event.target.value = '';
   };
 
+  // ========== Modal Handlers ==========
   const openEditModal = (asset) => {
     setSelectedAsset(asset);
     setIsEditConsolidatedModalOpen(true);
@@ -289,13 +215,8 @@ function App() {
     setIsDetailModalOpen(true);
   };
 
-  // 🔥 個別購入記録の編集
   const handleEditPurchase = (purchaseRecord) => {
-    console.log('Edit purchase:', purchaseRecord);
-    
     const originalAsset = portfolio.find(a => a.id === purchaseRecord.id);
-    
-    console.log('Found asset:', originalAsset);
     
     if (originalAsset) {
       setSelectedAsset(originalAsset);
@@ -306,137 +227,13 @@ function App() {
     }
   };
 
-  // 🔥 売却記録の編集
   const handleEditSellRecord = (sellRecord) => {
-    console.log('Edit sell record:', sellRecord);
     setSelectedSellRecord(sellRecord);
     setIsEditSellRecordModalOpen(true);
     setIsDetailModalOpen(false);
   };
 
-  const handleSaveSellRecord = () => {
-    setPortfolio([...portfolio]);
-    loadSnapshots();
-  };
-
-  const getConsolidatedPortfolio = () => {
-    const sellHistory = getSellHistory();
-    const consolidated = {};
-
-    portfolio.forEach(asset => {
-      const key = asset.name;
-
-      if (consolidated[key]) {
-        const existing = consolidated[key];
-        existing.originalQuantity += asset.quantity;
-        
-        const totalCost = (existing.purchasePrice * existing.quantity) + (asset.purchasePrice * asset.quantity);
-        const totalQuantity = existing.quantity + asset.quantity;
-        existing.purchasePrice = totalCost / totalQuantity;
-        existing.quantity = totalQuantity;
-        
-        if (new Date(asset.purchaseDate) < new Date(existing.purchaseDate)) {
-          existing.purchaseDate = asset.purchaseDate;
-        }
-        
-        existing.assetIds.push(asset.id);
-        
-        // 購入履歴を保存
-        existing.purchaseRecords.push({
-          id: asset.id,
-          purchaseDate: asset.purchaseDate,
-          quantity: asset.quantity,
-          purchasePrice: asset.purchasePrice
-        });
-        
-        if (asset.tags) {
-          existing.tags = [...new Set([...(existing.tags || []), ...asset.tags])];
-        }
-        
-        if (asset.currentPrice) {
-          existing.currentPrice = asset.currentPrice;
-        }
-      } else {
-        consolidated[key] = {
-          ...asset,
-          assetIds: [asset.id],
-          originalQuantity: asset.quantity,
-          isConsolidated: true,
-          purchaseRecords: [{
-            id: asset.id,
-            purchaseDate: asset.purchaseDate,
-            quantity: asset.quantity,
-            purchasePrice: asset.purchasePrice
-          }]
-        };
-      }
-    });
-
-    return Object.values(consolidated).map(asset => {
-      const soldQuantity = asset.assetIds.reduce((sum, id) => {
-        const sold = sellHistory
-          .filter(record => record.originalAssetId === id)
-          .reduce((total, record) => total + record.quantity, 0);
-        return sum + sold;
-      }, 0);
-
-      const activeQuantity = asset.quantity - soldQuantity;
-
-      // 購入履歴を購入日順にソート
-      if (asset.purchaseRecords) {
-        asset.purchaseRecords.sort((a, b) => new Date(a.purchaseDate) - new Date(b.purchaseDate));
-      }
-
-      return {
-        ...asset,
-        activeQuantity,
-        displayQuantity: asset.quantity,
-        soldQuantity
-      };
-    }).filter(asset => asset.activeQuantity > 0);
-  };
-
-  const activePortfolio = getConsolidatedPortfolio();
-  
-  // 🔥 仮想通貨除外フィルター適用
-  const filteredPortfolio = excludeCrypto 
-    ? activePortfolio.filter(asset => asset.type !== 'crypto')
-    : activePortfolio;
-
-  const getTagAnalysis = () => {
-    const tagTotals = {};
-    
-    activePortfolio.forEach(asset => {
-      if (!asset.tags || asset.tags.length === 0) {
-        tagTotals['タグなし'] = (tagTotals['タグなし'] || 0) + (asset.currentPrice || asset.purchasePrice) * asset.activeQuantity;
-      } else {
-        asset.tags.forEach(tag => {
-          const value = asset.currency === 'USD'
-            ? (asset.currentPrice || asset.purchasePrice) * asset.activeQuantity * exchangeRate
-            : (asset.currentPrice || asset.purchasePrice) * asset.activeQuantity;
-          
-          tagTotals[tag] = (tagTotals[tag] || 0) + value;
-        });
-      }
-    });
-    
-    return Object.entries(tagTotals)
-      .map(([tag, value]) => ({ tag, value }))
-      .sort((a, b) => b.value - a.value);
-  };
-
-  const getAssetsByTag = (selectedTag) => {
-    if (!selectedTag) return [];
-    
-    return activePortfolio.filter(asset => 
-      asset.tags && asset.tags.includes(selectedTag)
-    );
-  };
-
-  const tagAnalysis = getTagAnalysis();
-  const allTags = [...new Set(portfolio.flatMap(a => a.tags || []))];
-  
-  // 🔥 タグの選択/解除
+  // ========== Tag Management ==========
   const handleToggleTag = (tag) => {
     setSelectedTags(prev => {
       if (prev.includes(tag)) {
@@ -446,8 +243,7 @@ function App() {
       }
     });
   };
-  
-  // 🔥 全タグ選択/解除
+
   const handleSelectAllTags = () => {
     if (selectedTags.length === allTags.length) {
       setSelectedTags([]);
@@ -456,9 +252,18 @@ function App() {
     }
   };
 
+  // ========== Computed Data ==========
+  const activePortfolio = getConsolidatedPortfolio(portfolio);
+  const filteredPortfolio = excludeCrypto 
+    ? activePortfolio.filter(asset => asset.type !== 'crypto')
+    : activePortfolio;
+  const tagAnalysis = getTagAnalysis(activePortfolio, exchangeRate);
+  const allTags = getAllUniqueTags(portfolio);
+
+  // ========== Render ==========
   return (
     <div className="App">
-      {/* トースト通知コンテナ */}
+      {/* Toast Notifications */}
       <div className="toast-container">
         {toasts.map(toast => (
           <Toast
@@ -470,7 +275,7 @@ function App() {
         ))}
       </div>
 
-      {/* 非表示のファイル入力 */}
+      {/* Hidden File Input */}
       <input
         ref={fileInputRef}
         type="file"
@@ -479,6 +284,7 @@ function App() {
         style={{ display: 'none' }}
       />
 
+      {/* Header */}
       <header>
         <h1>📊 ポートフォリオ管理システム</h1>
         <div className="header-buttons">
@@ -499,6 +305,7 @@ function App() {
       </header>
 
       <main>
+        {/* Portfolio Table */}
         <section className="portfolio-section">
           <h2>保有銘柄一覧</h2>
           <PortfolioTable
@@ -511,6 +318,7 @@ function App() {
           />
         </section>
 
+        {/* Performance Chart */}
         <section className="performance-section">
           <h2>📈 パフォーマンス推移</h2>
           <PerformanceChart 
@@ -520,6 +328,7 @@ function App() {
           />
         </section>
 
+        {/* Asset Allocation */}
         <section className="allocation-section">
           <div className="tabs">
             <button 
@@ -611,7 +420,7 @@ function App() {
                 
                 {allTags.length > 0 ? (
                   <>
-                    {/* タグ選択UI */}
+                    {/* Tag Selection UI */}
                     <div style={{
                       background: '#f8f9fa',
                       padding: '20px',
@@ -652,7 +461,7 @@ function App() {
                       }}>
                         {allTags.map(tag => {
                           const isSelected = selectedTags.includes(tag);
-                          const tagAssets = getAssetsByTag(tag);
+                          const tagAssets = getAssetsByTag(activePortfolio, tag);
                           
                           return (
                             <label
@@ -704,7 +513,7 @@ function App() {
                       )}
                     </div>
 
-                    {/* 選択されたタグの円グラフ */}
+                    {/* Chart & Details */}
                     {selectedTags.length > 0 ? (
                       <>
                         <AssetAllocationChart
@@ -716,11 +525,10 @@ function App() {
                           selectedTags={selectedTags}
                         />
                         
-                        {/* 選択されたタグの詳細 */}
                         <div className="tag-details" style={{marginTop: '30px'}}>
                           <h3>タグ別内訳</h3>
                           {selectedTags.map(tag => {
-                            const tagAssets = getAssetsByTag(tag);
+                            const tagAssets = getAssetsByTag(activePortfolio, tag);
                             if (tagAssets.length === 0) return null;
                             
                             return (
@@ -767,6 +575,7 @@ function App() {
         </section>
       </main>
 
+      {/* Modals */}
       {isAddModalOpen && (
         <AddAssetModal
           onClose={() => setIsAddModalOpen(false)}
