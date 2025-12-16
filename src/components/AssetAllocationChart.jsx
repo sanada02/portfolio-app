@@ -28,23 +28,23 @@ const AssetAllocationChart = ({ portfolio, exchangeRate, groupBy = 'name', selec
           key = asset.type === 'stock' ? '株式' :
                 asset.type === 'fund' ? '投資信託' :
                 asset.type === 'etf' ? 'ETF' :
-                asset.type === 'crypto' ? '暗号通貨' : 'その他';
+                asset.type === 'crypto' ? '仮想通貨' : 'その他';
           break;
         
         case 'tags':
           if (!asset.tags || asset.tags.length === 0) {
             key = 'タグなし';
           } else {
-            // 🔥 選択されたタグのみを処理
+            // 🔥 選択されたタグのみを処理（按分なし）
             const relevantTags = selectedTags 
               ? asset.tags.filter(tag => selectedTags.includes(tag))
               : asset.tags;
             
             if (relevantTags.length === 0) return; // 選択されたタグがない場合はスキップ
             
-            // 複数タグがある場合、それぞれに按分
+            // 🔥 按分せず、各タグに全額を加算（ユーザーが判断）
             relevantTags.forEach(tag => {
-              grouped[tag] = (grouped[tag] || 0) + (value / relevantTags.length);
+              grouped[tag] = (grouped[tag] || 0) + value;
             });
             return; // forEachを抜ける
           }

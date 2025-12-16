@@ -7,7 +7,7 @@ export const assetTypeNames = {
   stock: '株式',
   fund: '投資信託',
   etf: 'ETF',
-  crypto: '暗号通貨',
+  crypto: '仮想通貨',
   other: 'その他'
 };
 

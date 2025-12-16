@@ -115,7 +115,7 @@ const PortfolioTable = ({ portfolio, exchangeRate, onEdit, onDelete, onSell, onD
                     {asset.type === 'stock' ? '株式' :
                      asset.type === 'fund' ? '投資信託' :
                      asset.type === 'etf' ? 'ETF' :
-                     asset.type === 'crypto' ? '暗号通貨' : 'その他'}
+                     asset.type === 'crypto' ? '仮想通貨' : 'その他'}
                   </span>
                 </td>
                 <td style={{ textAlign: 'right' }}>{formatNumber(asset.activeQuantity)}</td>
