@@ -72,6 +72,7 @@ function App() {
           name: updates.name,
           symbol: updates.symbol,
           isinCd: updates.isinCd,
+          associFundCd: updates.associFundCd,
           currentPrice: updates.currentPrice,
           tags: updates.tags
         };
@@ -102,6 +103,16 @@ function App() {
       savePortfolio(updatedPortfolio);
       addNotification('購入記録を削除しました', 'success');
     }
+  };
+
+  // 🔥 売却記録の削除
+  const handleDeleteSellRecord = (sellRecordId) => {
+    const allSellHistory = getSellHistory();
+    const updatedHistory = allSellHistory.filter(record => record.id !== sellRecordId);
+    saveSellHistory(updatedHistory);
+    setPortfolio([...portfolio]);
+    loadSnapshots();
+    addNotification('売却記録を削除しました', 'success');
   };
 
   const handleDeleteAsset = (assetId) => {
@@ -566,6 +577,7 @@ function App() {
           onAdd={handleAddAsset}
           exchangeRate={exchangeRate}
           addNotification={addNotification}
+          portfolio={portfolio}
         />
       )}
 
@@ -631,6 +643,7 @@ function App() {
           onEditPurchase={handleEditPurchase}
           onDeletePurchase={handleDeletePurchase}
           onEditSellRecord={handleEditSellRecord}
+          onDeleteSellRecord={handleDeleteSellRecord}
         />
       )}
     </div>

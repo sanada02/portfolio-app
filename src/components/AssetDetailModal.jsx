@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { getSellHistory } from '../utils/storage';
 
-const AssetDetailModal = ({ asset, onClose, exchangeRate, onEditPurchase, onDeletePurchase, onEditSellRecord }) => {
+const AssetDetailModal = ({ asset, onClose, exchangeRate, onEditPurchase, onDeletePurchase, onEditSellRecord, onDeleteSellRecord }) => {
   const [expandedSection, setExpandedSection] = useState(null);
   
   // 統合銘柄の場合は全IDの売却履歴を取得
@@ -93,6 +93,12 @@ const AssetDetailModal = ({ asset, onClose, exchangeRate, onEditPurchase, onDele
               <div className="detail-item">
                 <label>ISINコード</label>
                 <div className="detail-value">{asset.isinCd}</div>
+              </div>
+            )}
+            {asset.associFundCd && (
+              <div className="detail-item">
+                <label>投信協会コード</label>
+                <div className="detail-value">{asset.associFundCd}</div>
               </div>
             )}
             <div className="detail-item">
@@ -326,22 +332,43 @@ const AssetDetailModal = ({ asset, onClose, exchangeRate, onEditPurchase, onDele
                             {sellProfit >= 0 ? '+' : ''}{formatCurrency(sellProfit, asset.currency)}
                           </td>
                           <td style={{ textAlign: 'center' }}>
-                            <button
-                              onClick={() => {
-                                onEditSellRecord(record);
-                              }}
-                              style={{
-                                padding: '4px 12px',
-                                fontSize: '12px',
-                                background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '4px',
-                                cursor: 'pointer'
-                              }}
-                            >
-                              編集
-                            </button>
+                            <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                              <button
+                                onClick={() => {
+                                  onEditSellRecord(record);
+                                }}
+                                style={{
+                                  padding: '4px 12px',
+                                  fontSize: '12px',
+                                  background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                編集
+                              </button>
+                              <button
+                                onClick={() => {
+                                  if (window.confirm(`${formatDate(record.sellDate)}の売却記録を削除しますか？`)) {
+                                    onDeleteSellRecord(record.id);
+                                    onClose();
+                                  }
+                                }}
+                                style={{
+                                  padding: '4px 12px',
+                                  fontSize: '12px',
+                                  background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                削除
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );

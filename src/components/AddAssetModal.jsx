@@ -1,24 +1,53 @@
-// src/components/AddAssetModal.jsx (改善版)
-import { useState } from 'react';
+// src/components/AddAssetModal.jsx (改善版 + 既存銘柄選択機能)
+import { useState, useEffect } from 'react';
 import { AlertCircle, CheckCircle, Loader } from 'lucide-react';
+import { getTodayJST } from '../utils/dateUtils';
 
-export default function AddAssetModal({ onClose, onAdd, addNotification }) {
+export default function AddAssetModal({ onClose, onAdd, addNotification, portfolio }) {
   const [formData, setFormData] = useState({
     type: 'stock',
     symbol: '',
     name: '',
     quantity: '',
     purchasePrice: '',
-    purchaseDate: new Date().toISOString().split('T')[0],
+    purchaseDate: getTodayJST(),
     currency: 'JPY',
     isinCd: '',
     associFundCd: '',
     tags: []
   });
 
-  const [validationStatus, setValidationStatus] = useState(null); // 'checking' | 'valid' | 'invalid' | null
+  const [validationStatus, setValidationStatus] = useState(null);
   const [validationMessage, setValidationMessage] = useState('');
   const [currentTag, setCurrentTag] = useState('');
+  const [selectedExistingAsset, setSelectedExistingAsset] = useState('');
+  
+  // 既存銘柄のユニークリストを取得
+  const existingAssets = portfolio ? 
+    Array.from(new Map(portfolio.map(asset => [asset.name, asset])).values()) : [];
+
+  // 既存銘柄を選択したときの処理
+  const handleSelectExistingAsset = (e) => {
+    const assetName = e.target.value;
+    setSelectedExistingAsset(assetName);
+    
+    if (assetName) {
+      const asset = existingAssets.find(a => a.name === assetName);
+      if (asset) {
+        setFormData(prev => ({
+          ...prev,
+          type: asset.type,
+          name: asset.name,
+          symbol: asset.symbol || '',
+          isinCd: asset.isinCd || '',
+          associFundCd: asset.associFundCd || '',
+          currency: asset.currency,
+          tags: asset.tags || []
+        }));
+        addNotification('既存銘柄の情報を読み込みました', 'info');
+      }
+    }
+  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -238,6 +267,38 @@ export default function AddAssetModal({ onClose, onAdd, addNotification }) {
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <h2>銘柄を追加</h2>
         <div className="modal-form">
+          {/* 既存銘柄選択 */}
+          {existingAssets.length > 0 && (
+            <div className="form-group" style={{
+              background: '#e0e7ff',
+              padding: '16px',
+              borderRadius: '8px',
+              marginBottom: '20px'
+            }}>
+              <label style={{ color: '#4338ca', fontWeight: 'bold' }}>
+                💡 既存銘柄から選択（オプション）
+              </label>
+              <select 
+                value={selectedExistingAsset}
+                onChange={handleSelectExistingAsset}
+                style={{
+                  marginTop: '8px',
+                  width: '100%'
+                }}
+              >
+                <option value="">新しい銘柄を追加...</option>
+                {existingAssets.map(asset => (
+                  <option key={asset.id} value={asset.name}>
+                    {asset.name} ({asset.symbol || asset.isinCd || asset.type})
+                  </option>
+                ))}
+              </select>
+              <small style={{ color: '#6b7280', fontSize: '12px', display: 'block', marginTop: '6px' }}>
+                既存の銘柄を選択すると、銘柄名やシンボル等が自動入力されます
+              </small>
+            </div>
+          )}
+
           <div className="form-group">
             <label>種類</label>
             <select name="type" value={formData.type} onChange={handleTypeChange}>

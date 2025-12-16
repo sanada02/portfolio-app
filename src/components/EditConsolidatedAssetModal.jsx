@@ -6,6 +6,7 @@ const EditConsolidatedAssetModal = ({ asset, portfolio, onClose, onSave, addNoti
     name: asset.name,
     symbol: asset.symbol || '',
     isinCd: asset.isinCd || '',
+    associFundCd: asset.associFundCd || '',
     currentPrice: asset.currentPrice || '',
     tags: asset.tags || []
   });
@@ -35,6 +36,7 @@ const EditConsolidatedAssetModal = ({ asset, portfolio, onClose, onSave, addNoti
         name: formData.name,
         symbol: formData.symbol,
         isinCd: formData.isinCd,
+        associFundCd: formData.associFundCd,
         currentPrice: formData.currentPrice ? parseFloat(formData.currentPrice) : null,
         tags: formData.tags
       }
@@ -117,16 +119,39 @@ const EditConsolidatedAssetModal = ({ asset, portfolio, onClose, onSave, addNoti
             </div>
           )}
 
-          {(asset.type === 'fund' || asset.type === 'etf') && (
+          {asset.type === 'crypto' && (
             <div className="form-group">
-              <label>ISINコード</label>
+              <label>ティッカーシンボル</label>
               <input
                 type="text"
-                value={formData.isinCd}
-                onChange={(e) => setFormData({ ...formData, isinCd: e.target.value })}
-                placeholder="例: JP90C000FJ38"
+                value={formData.symbol}
+                onChange={(e) => setFormData({ ...formData, symbol: e.target.value })}
+                placeholder="例: BTC"
               />
             </div>
+          )}
+
+          {(asset.type === 'fund' || asset.type === 'etf') && (
+            <>
+              <div className="form-group">
+                <label>ISINコード</label>
+                <input
+                  type="text"
+                  value={formData.isinCd}
+                  onChange={(e) => setFormData({ ...formData, isinCd: e.target.value })}
+                  placeholder="例: JP90C000FJ38"
+                />
+              </div>
+              <div className="form-group">
+                <label>投信協会コード</label>
+                <input
+                  type="text"
+                  value={formData.associFundCd}
+                  onChange={(e) => setFormData({ ...formData, associFundCd: e.target.value })}
+                  placeholder="例: 03311187"
+                />
+              </div>
+            </>
           )}
 
           <div className="form-group">
