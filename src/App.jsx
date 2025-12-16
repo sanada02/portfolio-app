@@ -31,6 +31,12 @@ function App() {
   const [activeTab, setActiveTab] = useState('overview');
   const [toasts, setToasts] = useState([]);
   const fileInputRef = useRef(null);
+  
+  // 🔥 仮想通貨除外フィルター
+  const [excludeCrypto, setExcludeCrypto] = useState(false);
+  
+  // 🔥 タグ選択
+  const [selectedTags, setSelectedTags] = useState([]);
 
   useEffect(() => {
     const loadedPortfolio = loadPortfolio();
@@ -391,6 +397,11 @@ function App() {
   };
 
   const activePortfolio = getConsolidatedPortfolio();
+  
+  // 🔥 仮想通貨除外フィルター適用
+  const filteredPortfolio = excludeCrypto 
+    ? activePortfolio.filter(asset => asset.type !== 'crypto')
+    : activePortfolio;
 
   const getTagAnalysis = () => {
     const tagTotals = {};
@@ -424,6 +435,26 @@ function App() {
 
   const tagAnalysis = getTagAnalysis();
   const allTags = [...new Set(portfolio.flatMap(a => a.tags || []))];
+  
+  // 🔥 タグの選択/解除
+  const handleToggleTag = (tag) => {
+    setSelectedTags(prev => {
+      if (prev.includes(tag)) {
+        return prev.filter(t => t !== tag);
+      } else {
+        return [...prev, tag];
+      }
+    });
+  };
+  
+  // 🔥 全タグ選択/解除
+  const handleSelectAllTags = () => {
+    if (selectedTags.length === allTags.length) {
+      setSelectedTags([]);
+    } else {
+      setSelectedTags([...allTags]);
+    }
+  };
 
   return (
     <div className="App">
@@ -514,16 +545,60 @@ function App() {
           <div className="tab-content">
             {activeTab === 'overview' && (
               <div>
-                <h2>🍰 全体資産配分</h2>
-                <AssetAllocationChart portfolio={activePortfolio} exchangeRate={exchangeRate} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                  <h2>🍰 全体資産配分</h2>
+                  <label style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '8px',
+                    cursor: 'pointer',
+                    padding: '8px 16px',
+                    background: excludeCrypto ? '#e0e7ff' : '#f3f4f6',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    transition: 'all 0.2s'
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={excludeCrypto}
+                      onChange={(e) => setExcludeCrypto(e.target.checked)}
+                      style={{ cursor: 'pointer' }}
+                    />
+                    仮想通貨を除外
+                  </label>
+                </div>
+                <AssetAllocationChart portfolio={filteredPortfolio} exchangeRate={exchangeRate} />
               </div>
             )}
 
             {activeTab === 'allocation' && (
               <div>
-                <h2>📊 資産種別配分</h2>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                  <h2>📊 資産種別配分</h2>
+                  <label style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '8px',
+                    cursor: 'pointer',
+                    padding: '8px 16px',
+                    background: excludeCrypto ? '#e0e7ff' : '#f3f4f6',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    transition: 'all 0.2s'
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={excludeCrypto}
+                      onChange={(e) => setExcludeCrypto(e.target.checked)}
+                      style={{ cursor: 'pointer' }}
+                    />
+                    仮想通貨を除外
+                  </label>
+                </div>
                 <AssetAllocationChart 
-                  portfolio={activePortfolio} 
+                  portfolio={filteredPortfolio} 
                   exchangeRate={exchangeRate}
                   groupBy="type"
                 />
@@ -533,41 +608,158 @@ function App() {
             {activeTab === 'tags' && (
               <div>
                 <h2>🏷️ タグ別分析</h2>
-                {tagAnalysis.length > 0 ? (
-                  <AssetAllocationChart
-                    portfolio={activePortfolio}
-                    exchangeRate={exchangeRate}
-                    groupBy="tags"
-                  />
+                
+                {allTags.length > 0 ? (
+                  <>
+                    {/* タグ選択UI */}
+                    <div style={{
+                      background: '#f8f9fa',
+                      padding: '20px',
+                      borderRadius: '10px',
+                      marginBottom: '30px'
+                    }}>
+                      <div style={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'center',
+                        marginBottom: '16px'
+                      }}>
+                        <h3 style={{ margin: 0, fontSize: '16px', color: '#333' }}>
+                          分析するタグを選択
+                        </h3>
+                        <button
+                          onClick={handleSelectAllTags}
+                          style={{
+                            padding: '6px 12px',
+                            fontSize: '13px',
+                            background: selectedTags.length === allTags.length ? '#667eea' : 'white',
+                            color: selectedTags.length === allTags.length ? 'white' : '#667eea',
+                            border: '2px solid #667eea',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            fontWeight: '500',
+                            transition: 'all 0.2s'
+                          }}
+                        >
+                          {selectedTags.length === allTags.length ? '✓ すべて選択中' : 'すべて選択'}
+                        </button>
+                      </div>
+                      
+                      <div style={{
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: '10px'
+                      }}>
+                        {allTags.map(tag => {
+                          const isSelected = selectedTags.includes(tag);
+                          const tagAssets = getAssetsByTag(tag);
+                          
+                          return (
+                            <label
+                              key={tag}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                padding: '10px 16px',
+                                background: isSelected ? '#e0e7ff' : 'white',
+                                border: `2px solid ${isSelected ? '#667eea' : '#e5e7eb'}`,
+                                borderRadius: '8px',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s',
+                                fontWeight: isSelected ? '600' : '400',
+                                color: isSelected ? '#4338ca' : '#6b7280'
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => handleToggleTag(tag)}
+                                style={{ cursor: 'pointer' }}
+                              />
+                              <span>{tag}</span>
+                              <span style={{
+                                fontSize: '12px',
+                                color: isSelected ? '#818cf8' : '#9ca3af',
+                                marginLeft: '4px'
+                              }}>
+                                ({tagAssets.length})
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                      
+                      {selectedTags.length > 0 && (
+                        <div style={{
+                          marginTop: '12px',
+                          padding: '10px',
+                          background: '#e0e7ff',
+                          borderRadius: '6px',
+                          fontSize: '13px',
+                          color: '#4338ca'
+                        }}>
+                          ✓ {selectedTags.length}個のタグを選択中
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 選択されたタグの円グラフ */}
+                    {selectedTags.length > 0 ? (
+                      <>
+                        <AssetAllocationChart
+                          portfolio={activePortfolio.filter(asset => 
+                            asset.tags && asset.tags.some(tag => selectedTags.includes(tag))
+                          )}
+                          exchangeRate={exchangeRate}
+                          groupBy="tags"
+                          selectedTags={selectedTags}
+                        />
+                        
+                        {/* 選択されたタグの詳細 */}
+                        <div className="tag-details" style={{marginTop: '30px'}}>
+                          <h3>タグ別内訳</h3>
+                          {selectedTags.map(tag => {
+                            const tagAssets = getAssetsByTag(tag);
+                            if (tagAssets.length === 0) return null;
+                            
+                            return (
+                              <details key={tag} style={{marginBottom: '15px', padding: '10px', border: '1px solid #ddd', borderRadius: '5px'}}>
+                                <summary style={{cursor: 'pointer', fontWeight: 'bold'}}>
+                                  🏷️ {tag} ({tagAssets.length}銘柄)
+                                </summary>
+                                <div style={{marginTop: '15px'}}>
+                                  <AssetAllocationChart
+                                    portfolio={tagAssets}
+                                    exchangeRate={exchangeRate}
+                                    groupBy="name"
+                                  />
+                                </div>
+                              </details>
+                            );
+                          })}
+                        </div>
+                      </>
+                    ) : (
+                      <div style={{
+                        textAlign: 'center',
+                        padding: '60px 20px',
+                        background: '#f8f9fa',
+                        borderRadius: '10px',
+                        color: '#6b7280'
+                      }}>
+                        <div style={{ fontSize: '48px', marginBottom: '16px' }}>🏷️</div>
+                        <h3 style={{ marginBottom: '8px', color: '#374151' }}>タグを選択してください</h3>
+                        <p style={{ fontSize: '14px' }}>
+                          上のタグ一覧から分析したいタグを選択すると、円グラフが表示されます
+                        </p>
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <p style={{textAlign: 'center', padding: '40px', color: '#666'}}>
                     タグが設定された銘柄がありません
                   </p>
-                )}
-
-                {allTags.length > 0 && (
-                  <div className="tag-details" style={{marginTop: '30px'}}>
-                    <h3>タグ内訳</h3>
-                    {allTags.map(tag => {
-                      const tagAssets = getAssetsByTag(tag);
-                      if (tagAssets.length === 0) return null;
-                      
-                      return (
-                        <details key={tag} style={{marginBottom: '15px', padding: '10px', border: '1px solid #ddd', borderRadius: '5px'}}>
-                          <summary style={{cursor: 'pointer', fontWeight: 'bold'}}>
-                            🏷️ {tag} ({tagAssets.length}銘柄)
-                          </summary>
-                          <div style={{marginTop: '15px'}}>
-                            <AssetAllocationChart
-                              portfolio={tagAssets}
-                              exchangeRate={exchangeRate}
-                              groupBy="name"
-                            />
-                          </div>
-                        </details>
-                      );
-                    })}
-                  </div>
                 )}
               </div>
             )}

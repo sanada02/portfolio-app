@@ -4,7 +4,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recha
 
 const COLORS = ['#667eea', '#764ba2', '#f093fb', '#4facfe', '#43e97b', '#fa709a', '#fee140', '#30cfd0'];
 
-const AssetAllocationChart = ({ portfolio, exchangeRate, groupBy = 'name' }) => {
+const AssetAllocationChart = ({ portfolio, exchangeRate, groupBy = 'name', selectedTags = null }) => {
   if (!portfolio || portfolio.length === 0) {
     return (
       <div style={{ textAlign: 'center', padding: '40px', color: '#999' }}>
@@ -35,9 +35,16 @@ const AssetAllocationChart = ({ portfolio, exchangeRate, groupBy = 'name' }) => 
           if (!asset.tags || asset.tags.length === 0) {
             key = 'タグなし';
           } else {
+            // 🔥 選択されたタグのみを処理
+            const relevantTags = selectedTags 
+              ? asset.tags.filter(tag => selectedTags.includes(tag))
+              : asset.tags;
+            
+            if (relevantTags.length === 0) return; // 選択されたタグがない場合はスキップ
+            
             // 複数タグがある場合、それぞれに按分
-            asset.tags.forEach(tag => {
-              grouped[tag] = (grouped[tag] || 0) + (value / asset.tags.length);
+            relevantTags.forEach(tag => {
+              grouped[tag] = (grouped[tag] || 0) + (value / relevantTags.length);
             });
             return; // forEachを抜ける
           }
