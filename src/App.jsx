@@ -4,7 +4,9 @@ import { loadPortfolio, savePortfolio, getSellHistory, saveSellHistory, exportDa
 import { updateAllPrices, rebuildAllHistory, regenerateDailySnapshots } from './utils/priceAPI';
 import { getDailySnapshots } from './utils/database';
 import AddAssetModal from './components/AddAssetModal';
-import EditAssetModal from './components/EditAssetModal';
+import EditConsolidatedAssetModal from './components/EditConsolidatedAssetModal';
+import EditPurchaseRecordModal from './components/EditPurchaseRecordModal';
+import EditSellRecordModal from './components/EditSellRecordModal';
 import SellAssetModal from './components/SellAssetModal';
 import AssetDetailModal from './components/AssetDetailModal';
 import PortfolioTable from './components/PortfolioTable';
@@ -16,10 +18,13 @@ import './App.css';
 function App() {
   const [portfolio, setPortfolio] = useState([]);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isEditConsolidatedModalOpen, setIsEditConsolidatedModalOpen] = useState(false);
+  const [isEditPurchaseModalOpen, setIsEditPurchaseModalOpen] = useState(false);
+  const [isEditSellRecordModalOpen, setIsEditSellRecordModalOpen] = useState(false);
   const [isSellModalOpen, setIsSellModalOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState(null);
+  const [selectedSellRecord, setSelectedSellRecord] = useState(null);
   const [exchangeRate, setExchangeRate] = useState(150);
   const [isLoading, setIsLoading] = useState(false);
   const [snapshotData, setSnapshotData] = useState([]);
@@ -56,13 +61,37 @@ function App() {
     addNotification('資産を追加しました', 'success');
   };
 
-  const handleEditAsset = (editedAsset) => {
+  // 🔥 統合銘柄の編集（全購入記録に適用）
+  const handleEditConsolidatedAsset = (editData) => {
+    const { assetIds, updates } = editData;
+    
+    const updatedPortfolio = portfolio.map(asset => {
+      if (assetIds.includes(asset.id)) {
+        return {
+          ...asset,
+          name: updates.name,
+          symbol: updates.symbol,
+          isinCd: updates.isinCd,
+          currentPrice: updates.currentPrice,
+          tags: updates.tags
+        };
+      }
+      return asset;
+    });
+    
+    setPortfolio(updatedPortfolio);
+    savePortfolio(updatedPortfolio);
+    addNotification('銘柄情報を更新しました', 'success');
+  };
+
+  // 🔥 購入記録の編集
+  const handleEditPurchaseRecord = (editedAsset) => {
     const updatedPortfolio = portfolio.map(asset => 
       asset.id === editedAsset.id ? editedAsset : asset
     );
     setPortfolio(updatedPortfolio);
     savePortfolio(updatedPortfolio);
-    addNotification('資産を更新しました', 'success');
+    addNotification('購入記録を更新しました', 'success');
   };
 
   // 🔥 個別購入記録の削除
@@ -230,7 +259,7 @@ function App() {
 
   const openEditModal = (asset) => {
     setSelectedAsset(asset);
-    setIsEditModalOpen(true);
+    setIsEditConsolidatedModalOpen(true);
   };
 
   const openSellModal = (asset) => {
@@ -245,20 +274,32 @@ function App() {
 
   // 🔥 個別購入記録の編集
   const handleEditPurchase = (purchaseRecord) => {
-    console.log('Edit purchase:', purchaseRecord); // デバッグ用
+    console.log('Edit purchase:', purchaseRecord);
     
-    // 元のポートフォリオから該当のassetを見つける
     const originalAsset = portfolio.find(a => a.id === purchaseRecord.id);
     
-    console.log('Found asset:', originalAsset); // デバッグ用
+    console.log('Found asset:', originalAsset);
     
     if (originalAsset) {
       setSelectedAsset(originalAsset);
-      setIsEditModalOpen(true);
-      setIsDetailModalOpen(false); // 詳細モーダルを閉じる
+      setIsEditPurchaseModalOpen(true);
+      setIsDetailModalOpen(false);
     } else {
       addNotification('購入記録が見つかりませんでした', 'error');
     }
+  };
+
+  // 🔥 売却記録の編集
+  const handleEditSellRecord = (sellRecord) => {
+    console.log('Edit sell record:', sellRecord);
+    setSelectedSellRecord(sellRecord);
+    setIsEditSellRecordModalOpen(true);
+    setIsDetailModalOpen(false);
+  };
+
+  const handleSaveSellRecord = () => {
+    setPortfolio([...portfolio]);
+    loadSnapshots();
   };
 
   const getConsolidatedPortfolio = () => {
@@ -528,15 +569,40 @@ function App() {
         />
       )}
 
-      {isEditModalOpen && selectedAsset && (
-        <EditAssetModal
+      {isEditConsolidatedModalOpen && selectedAsset && (
+        <EditConsolidatedAssetModal
           asset={selectedAsset}
           portfolio={portfolio}
           onClose={() => {
-            setIsEditModalOpen(false);
+            setIsEditConsolidatedModalOpen(false);
             setSelectedAsset(null);
           }}
-          onSave={handleEditAsset}
+          onSave={handleEditConsolidatedAsset}
+          addNotification={addNotification}
+        />
+      )}
+
+      {isEditPurchaseModalOpen && selectedAsset && (
+        <EditPurchaseRecordModal
+          asset={selectedAsset}
+          onClose={() => {
+            setIsEditPurchaseModalOpen(false);
+            setSelectedAsset(null);
+          }}
+          onSave={handleEditPurchaseRecord}
+          addNotification={addNotification}
+        />
+      )}
+
+      {isEditSellRecordModalOpen && selectedSellRecord && (
+        <EditSellRecordModal
+          sellRecord={selectedSellRecord}
+          currency={selectedSellRecord.currency}
+          onClose={() => {
+            setIsEditSellRecordModalOpen(false);
+            setSelectedSellRecord(null);
+          }}
+          onSave={handleSaveSellRecord}
           addNotification={addNotification}
         />
       )}
@@ -564,6 +630,7 @@ function App() {
           exchangeRate={exchangeRate}
           onEditPurchase={handleEditPurchase}
           onDeletePurchase={handleDeletePurchase}
+          onEditSellRecord={handleEditSellRecord}
         />
       )}
     </div>

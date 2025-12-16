@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { getSellHistory } from '../utils/storage';
 
-const AssetDetailModal = ({ asset, onClose, exchangeRate, onEditPurchase, onDeletePurchase }) => {
+const AssetDetailModal = ({ asset, onClose, exchangeRate, onEditPurchase, onDeletePurchase, onEditSellRecord }) => {
   const [expandedSection, setExpandedSection] = useState(null);
   
   // 統合銘柄の場合は全IDの売却履歴を取得
@@ -307,6 +307,7 @@ const AssetDetailModal = ({ asset, onClose, exchangeRate, onEditPurchase, onDele
                       <th style={{ textAlign: 'right' }}>売却単価</th>
                       <th style={{ textAlign: 'right' }}>売却額</th>
                       <th style={{ textAlign: 'right' }}>損益</th>
+                      <th style={{ textAlign: 'center' }}>操作</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -316,13 +317,31 @@ const AssetDetailModal = ({ asset, onClose, exchangeRate, onEditPurchase, onDele
                       const sellProfit = sellValue - costValue;
                       
                       return (
-                        <tr key={index}>
+                        <tr key={record.id || index}>
                           <td>{formatDate(record.sellDate)}</td>
                           <td style={{ textAlign: 'right' }}>{record.quantity.toLocaleString()}</td>
                           <td style={{ textAlign: 'right' }}>{formatCurrency(record.sellPrice, asset.currency)}</td>
                           <td style={{ textAlign: 'right' }}>{formatCurrency(sellValue, asset.currency)}</td>
                           <td style={{ textAlign: 'right' }} className={getProfitClass(sellProfit)}>
                             {sellProfit >= 0 ? '+' : ''}{formatCurrency(sellProfit, asset.currency)}
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <button
+                              onClick={() => {
+                                onEditSellRecord(record);
+                              }}
+                              style={{
+                                padding: '4px 12px',
+                                fontSize: '12px',
+                                background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              編集
+                            </button>
                           </td>
                         </tr>
                       );
