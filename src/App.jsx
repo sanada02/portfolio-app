@@ -1,4 +1,4 @@
-// src/App.jsx (履歴統合 + バックアップ機能追加版)
+// src/App.jsx (購入記録管理機能追加版)
 import React, { useState, useEffect, useRef } from 'react';
 import { loadPortfolio, savePortfolio, getSellHistory, saveSellHistory, exportData, importData } from './utils/storage';
 import { updateAllPrices, rebuildAllHistory, regenerateDailySnapshots } from './utils/priceAPI';
@@ -65,9 +65,35 @@ function App() {
     addNotification('資産を更新しました', 'success');
   };
 
+  // 🔥 個別購入記録の削除
+  const handleDeletePurchase = (purchaseId) => {
+    if (window.confirm('この購入記録を削除しますか？\n\n注意: この操作は取り消せません。')) {
+      const updatedPortfolio = portfolio.filter(asset => asset.id !== purchaseId);
+      setPortfolio(updatedPortfolio);
+      savePortfolio(updatedPortfolio);
+      addNotification('購入記録を削除しました', 'success');
+    }
+  };
+
   const handleDeleteAsset = (assetId) => {
-    if (window.confirm('本当にこの資産を削除しますか？')) {
-      const updatedPortfolio = portfolio.filter(asset => asset.id !== assetId);
+    // 統合銘柄の場合はassetIdsを持っている
+    const asset = getConsolidatedPortfolio().find(a => {
+      if (a.assetIds) {
+        return a.assetIds.includes(assetId) || a.id === assetId;
+      }
+      return a.id === assetId;
+    });
+
+    if (!asset) return;
+
+    const assetIdsToDelete = asset.assetIds || [assetId];
+    
+    if (window.confirm(
+      asset.assetIds 
+        ? `「${asset.name}」の全ての購入記録（${asset.assetIds.length}件）を削除しますか？`
+        : `本当にこの資産を削除しますか？`
+    )) {
+      const updatedPortfolio = portfolio.filter(a => !assetIdsToDelete.includes(a.id));
       setPortfolio(updatedPortfolio);
       savePortfolio(updatedPortfolio);
       addNotification('資産を削除しました', 'success');
@@ -104,7 +130,6 @@ function App() {
     }
   };
 
-  // 🔥 統合: 履歴再構築 + スナップショット再生成
   const handleRebuildHistoryAndSnapshots = async () => {
     if (!window.confirm('全履歴データとスナップショットを再構築しますか？\n（数分かかる場合があります）')) {
       return;
@@ -112,7 +137,6 @@ function App() {
 
     setIsLoading(true);
     try {
-      // ステップ1: 履歴再構築
       addNotification('📚 履歴データを取得中...', 'info');
       const historyResult = await rebuildAllHistory(portfolio);
       
@@ -122,7 +146,6 @@ function App() {
         addNotification(`履歴データの取得が完了しました！\n最古の購入日: ${historyResult.oldestDate}`, 'success');
       }
 
-      // ステップ2: スナップショット再生成
       addNotification('📸 スナップショットを再生成中...', 'info');
       const snapshotResult = await regenerateDailySnapshots(portfolio);
       
@@ -140,7 +163,6 @@ function App() {
     }
   };
 
-  // 🔥 新機能: バックアップのエクスポート
   const handleExportBackup = () => {
     try {
       const data = exportData();
@@ -163,7 +185,6 @@ function App() {
     }
   };
 
-  // 🔥 新機能: バックアップのインポート
   const handleImportBackup = (event) => {
     const file = event.target.files[0];
     if (!file) return;
@@ -173,7 +194,6 @@ function App() {
       try {
         const data = JSON.parse(e.target.result);
         
-        // データの検証
         if (!data.portfolio || !Array.isArray(data.portfolio)) {
           throw new Error('無効なバックアップファイルです');
         }
@@ -188,11 +208,9 @@ function App() {
           return;
         }
 
-        // インポート実行
         const success = importData(data);
         
         if (success) {
-          // データを再読み込み
           const loadedPortfolio = loadPortfolio();
           setPortfolio(loadedPortfolio);
           loadSnapshots();
@@ -207,8 +225,6 @@ function App() {
     };
 
     reader.readAsText(file);
-    
-    // input要素をリセット（同じファイルを再度選択できるように）
     event.target.value = '';
   };
 
@@ -229,11 +245,19 @@ function App() {
 
   // 🔥 個別購入記録の編集
   const handleEditPurchase = (purchaseRecord) => {
+    console.log('Edit purchase:', purchaseRecord); // デバッグ用
+    
     // 元のポートフォリオから該当のassetを見つける
     const originalAsset = portfolio.find(a => a.id === purchaseRecord.id);
+    
+    console.log('Found asset:', originalAsset); // デバッグ用
+    
     if (originalAsset) {
       setSelectedAsset(originalAsset);
       setIsEditModalOpen(true);
+      setIsDetailModalOpen(false); // 詳細モーダルを閉じる
+    } else {
+      addNotification('購入記録が見つかりませんでした', 'error');
     }
   };
 
@@ -259,7 +283,7 @@ function App() {
         
         existing.assetIds.push(asset.id);
         
-        // 🔥 購入履歴を保存
+        // 購入履歴を保存
         existing.purchaseRecords.push({
           id: asset.id,
           purchaseDate: asset.purchaseDate,
@@ -280,7 +304,6 @@ function App() {
           assetIds: [asset.id],
           originalQuantity: asset.quantity,
           isConsolidated: true,
-          // 🔥 購入履歴を初期化
           purchaseRecords: [{
             id: asset.id,
             purchaseDate: asset.purchaseDate,
@@ -301,7 +324,7 @@ function App() {
 
       const activeQuantity = asset.quantity - soldQuantity;
 
-      // 🔥 購入履歴を購入日順にソート
+      // 購入履歴を購入日順にソート
       if (asset.purchaseRecords) {
         asset.purchaseRecords.sort((a, b) => new Date(a.purchaseDate) - new Date(b.purchaseDate));
       }
@@ -540,6 +563,7 @@ function App() {
           }}
           exchangeRate={exchangeRate}
           onEditPurchase={handleEditPurchase}
+          onDeletePurchase={handleDeletePurchase}
         />
       )}
     </div>

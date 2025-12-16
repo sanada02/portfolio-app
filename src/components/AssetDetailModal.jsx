@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { getSellHistory } from '../utils/storage';
 
-const AssetDetailModal = ({ asset, onClose, exchangeRate, onEditPurchase }) => {
+const AssetDetailModal = ({ asset, onClose, exchangeRate, onEditPurchase, onDeletePurchase }) => {
   const [expandedSection, setExpandedSection] = useState(null);
   
   // 統合銘柄の場合は全IDの売却履歴を取得
@@ -142,6 +142,8 @@ const AssetDetailModal = ({ asset, onClose, exchangeRate, onEditPurchase }) => {
                   <tbody>
                     {asset.purchaseRecords.map((record, index) => {
                       const totalCost = record.purchasePrice * record.quantity;
+                      const canDelete = asset.purchaseRecords.length > 1; // 最後の1件は削除不可
+                      
                       return (
                         <tr key={record.id || index}>
                           <td>{formatDate(record.purchaseDate)}</td>
@@ -149,23 +151,45 @@ const AssetDetailModal = ({ asset, onClose, exchangeRate, onEditPurchase }) => {
                           <td style={{ textAlign: 'right' }}>{formatCurrency(record.purchasePrice, asset.currency)}</td>
                           <td style={{ textAlign: 'right' }}>{formatCurrency(totalCost, asset.currency)}</td>
                           <td style={{ textAlign: 'center' }}>
-                            <button
-                              onClick={() => {
-                                onEditPurchase(record);
-                                onClose();
-                              }}
-                              style={{
-                                padding: '4px 12px',
-                                fontSize: '12px',
-                                background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '4px',
-                                cursor: 'pointer'
-                              }}
-                            >
-                              編集
-                            </button>
+                            <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                              <button
+                                onClick={() => {
+                                  onEditPurchase(record);
+                                }}
+                                style={{
+                                  padding: '4px 12px',
+                                  fontSize: '12px',
+                                  background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                編集
+                              </button>
+                              {canDelete && (
+                                <button
+                                  onClick={() => {
+                                    if (window.confirm(`${formatDate(record.purchaseDate)}の購入記録を削除しますか？`)) {
+                                      onDeletePurchase(record.id);
+                                      onClose();
+                                    }
+                                  }}
+                                  style={{
+                                    padding: '4px 12px',
+                                    fontSize: '12px',
+                                    background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  削除
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       );
