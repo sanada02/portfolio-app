@@ -482,7 +482,11 @@ function App() {
 
         <section className="performance-section">
           <h2>📈 パフォーマンス推移</h2>
-          <PerformanceChart data={snapshotData} />
+          <PerformanceChart 
+            data={snapshotData} 
+            portfolio={activePortfolio}
+            exchangeRate={exchangeRate}
+          />
         </section>
 
         <section className="allocation-section">

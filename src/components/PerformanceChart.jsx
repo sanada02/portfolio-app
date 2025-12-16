@@ -1,13 +1,13 @@
-// src/components/PerformanceChart.jsx
+// src/components/PerformanceChart.jsx (リアルタイムデータ対応版)
 import React from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
-const PerformanceChart = ({ data }) => {
+const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
   if (!data || data.length === 0) {
     return (
       <div style={{ textAlign: 'center', padding: '60px 20px', color: '#6c757d' }}>
         <h3>データがありません</h3>
-        <p>「価格更新」または「スナップショット再生成」を実行してください</p>
+        <p>「価格更新」または「履歴再構築」を実行してください</p>
       </div>
     );
   }
@@ -16,6 +16,28 @@ const PerformanceChart = ({ data }) => {
   const sortedData = [...data].sort((a, b) => 
     new Date(a.date).getTime() - new Date(b.date).getTime()
   );
+
+  // 🔥 現在のリアルタイム評価額を計算
+  const calculateCurrentValue = () => {
+    let totalJPY = 0;
+    let totalUSD = 0;
+    
+    portfolio.forEach(asset => {
+      const currentPrice = asset.currentPrice || asset.purchasePrice;
+      const value = currentPrice * asset.activeQuantity;
+      
+      if (asset.currency === 'USD') {
+        totalUSD += value;
+        totalJPY += value * exchangeRate;
+      } else {
+        totalJPY += value;
+      }
+    });
+    
+    return { totalJPY, totalUSD };
+  };
+
+  const currentValue = portfolio && portfolio.length > 0 ? calculateCurrentValue() : null;
 
   // 日付フォーマット
   const formatDate = (dateStr) => {
@@ -31,9 +53,9 @@ const PerformanceChart = ({ data }) => {
     return `¥${(value / 1000).toFixed(0)}K`;
   };
 
-  // 最新の評価額を取得
-  const latestSnapshot = sortedData[sortedData.length - 1];
-  const totalValueJPY = latestSnapshot?.totalValueJPY || 0;
+  // 最新の評価額（リアルタイムがあればそれを、なければスナップショットの最新）
+  const totalValueJPY = currentValue ? currentValue.totalJPY : (sortedData[sortedData.length - 1]?.totalValueJPY || 0);
+  const totalValueUSD = currentValue ? currentValue.totalUSD : (sortedData[sortedData.length - 1]?.totalValueUSD || 0);
 
   // 開始時との比較
   const firstSnapshot = sortedData[0];
@@ -69,12 +91,19 @@ const PerformanceChart = ({ data }) => {
     return null;
   };
 
+  // 損益の文字色を取得
+  const getProfitColor = (value) => {
+    if (value > 0) return '#10b981'; // green
+    if (value < 0) return '#ef4444'; // red
+    return '#6b7280'; // gray
+  };
+
   return (
     <div>
       {/* サマリー */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
         gap: '20px',
         marginBottom: '30px'
       }}>
@@ -89,6 +118,16 @@ const PerformanceChart = ({ data }) => {
           <div style={{ fontSize: '28px', fontWeight: 'bold' }}>
             ¥{Math.round(totalValueJPY).toLocaleString()}
           </div>
+          {totalValueUSD > 0 && (
+            <>
+              <div style={{ fontSize: '13px', marginTop: '8px', opacity: 0.9 }}>
+                USD資産: ${Math.round(totalValueUSD).toLocaleString()}
+              </div>
+              <div style={{ fontSize: '12px', marginTop: '4px', opacity: 0.8 }}>
+                レート: ¥{exchangeRate.toFixed(2)}/USD
+              </div>
+            </>
+          )}
         </div>
 
         <div style={{
@@ -103,10 +142,18 @@ const PerformanceChart = ({ data }) => {
             : '0 4px 12px rgba(250, 112, 154, 0.3)'
         }}>
           <div style={{ fontSize: '14px', marginBottom: '8px', opacity: 0.9 }}>損益</div>
-          <div style={{ fontSize: '28px', fontWeight: 'bold' }}>
+          <div style={{ 
+            fontSize: '28px', 
+            fontWeight: 'bold',
+            color: getProfitColor(change)
+          }}>
             {isPositive ? '+' : ''}¥{Math.round(change).toLocaleString()}
           </div>
-          <div style={{ fontSize: '16px', marginTop: '4px' }}>
+          <div style={{ 
+            fontSize: '16px', 
+            marginTop: '4px',
+            color: getProfitColor(change)
+          }}>
             ({isPositive ? '+' : ''}{changePercent}%)
           </div>
         </div>

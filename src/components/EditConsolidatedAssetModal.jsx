@@ -94,16 +94,20 @@ const EditConsolidatedAssetModal = ({ asset, portfolio, onClose, onSave, addNoti
             />
           </div>
 
-          {asset.type === 'stock' && (
+          {(asset.type === 'stock' || asset.type === 'etf' || asset.type === 'crypto') && (
             <div className="form-group">
               <label>ティッカーシンボル</label>
               <input
                 type="text"
                 value={formData.symbol}
-                onChange={handleSymbolChange}
-                placeholder="例: AAPL"
+                onChange={asset.type === 'stock' || asset.type === 'etf' ? handleSymbolChange : (e) => setFormData({ ...formData, symbol: e.target.value })}
+                placeholder={
+                  asset.type === 'stock' ? '例: AAPL' :
+                  asset.type === 'etf' ? '例: VOO' :
+                  '例: BTC'
+                }
               />
-              {showSymbolWarning && formData.symbol && (
+              {showSymbolWarning && formData.symbol && (asset.type === 'stock' || asset.type === 'etf') && (
                 <div style={{
                   background: '#fff3cd',
                   padding: '10px',
@@ -119,19 +123,7 @@ const EditConsolidatedAssetModal = ({ asset, portfolio, onClose, onSave, addNoti
             </div>
           )}
 
-          {asset.type === 'crypto' && (
-            <div className="form-group">
-              <label>ティッカーシンボル</label>
-              <input
-                type="text"
-                value={formData.symbol}
-                onChange={(e) => setFormData({ ...formData, symbol: e.target.value })}
-                placeholder="例: BTC"
-              />
-            </div>
-          )}
-
-          {(asset.type === 'fund' || asset.type === 'etf') && (
+          {asset.type === 'fund' && (
             <>
               <div className="form-group">
                 <label>ISINコード</label>
