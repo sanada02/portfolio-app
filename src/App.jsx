@@ -11,7 +11,7 @@ import EditPurchaseRecordModal from './components/EditPurchaseRecordModal';
 import EditSellRecordModal from './components/EditSellRecordModal';
 import SellAssetModal from './components/SellAssetModal';
 import AssetDetailModal from './components/AssetDetailModal';
-import PortfolioTable from './components/PortfolioTable';
+import PortfolioSummaryAndTable from './components/PortfolioSummaryAndTable';
 import PerformanceChart from './components/PerformanceChart';
 import AssetAllocationChart from './components/AssetAllocationChart';
 import Toast from './components/Toast';
@@ -308,7 +308,7 @@ function App() {
         {/* Portfolio Table */}
         <section className="portfolio-section">
           <h2>保有銘柄一覧</h2>
-          <PortfolioTable
+          <PortfolioSummaryAndTable
             portfolio={activePortfolio}
             exchangeRate={exchangeRate}
             onEdit={openEditModal}
