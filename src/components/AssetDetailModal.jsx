@@ -151,7 +151,7 @@ const AssetDetailModal = ({ asset, onClose, exchangeRate, onEditPurchase, onDele
                       const canDelete = asset.purchaseRecords.length > 1; // 最後の1件は削除不可
                       
                       return (
-                        <tr key={record.id || index}>
+                        <tr key={`purchase-${record.id}-${index}`}>
                           <td>{formatDate(record.purchaseDate)}</td>
                           <td style={{ textAlign: 'right' }}>{record.quantity.toLocaleString()}</td>
                           <td style={{ textAlign: 'right' }}>{formatCurrency(record.purchasePrice, asset.currency)}</td>
@@ -323,7 +323,7 @@ const AssetDetailModal = ({ asset, onClose, exchangeRate, onEditPurchase, onDele
                       const sellProfit = sellValue - costValue;
                       
                       return (
-                        <tr key={record.id || index}>
+                        <tr key={`sell-${record.id || index}-${index}`}>
                           <td>{formatDate(record.sellDate)}</td>
                           <td style={{ textAlign: 'right' }}>{record.quantity.toLocaleString()}</td>
                           <td style={{ textAlign: 'right' }}>{formatCurrency(record.sellPrice, asset.currency)}</td>

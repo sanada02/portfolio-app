@@ -37,7 +37,27 @@ export const savePortfolio = (portfolio) => {
 export const getSellHistory = () => {
   try {
     const saved = localStorage.getItem(SELL_HISTORY_KEY);
-    return saved ? JSON.parse(saved) : [];
+    const history = saved ? JSON.parse(saved) : [];
+    
+    // IDがない古いデータに対してIDを付与
+    let needsSave = false;
+    const updatedHistory = history.map((record, index) => {
+      if (!record.id) {
+        needsSave = true;
+        return {
+          ...record,
+          id: `${Date.now()}_${index}_${Math.random().toString(36).substr(2, 9)}`
+        };
+      }
+      return record;
+    });
+    
+    // IDを追加した場合は保存
+    if (needsSave) {
+      saveSellHistory(updatedHistory);
+    }
+    
+    return updatedHistory;
   } catch (error) {
     console.error('売却履歴の読み込みエラー:', error);
     return [];
@@ -59,8 +79,9 @@ export const saveSellHistory = (sellHistory) => {
 export const addSellRecord = (record) => {
   try {
     const history = getSellHistory();
+    // より確実なID生成（ミリ秒 + ランダム文字列）
     const newRecord = {
-      id: Date.now().toString(),
+      id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       timestamp: new Date().toISOString(),
       ...record
     };
