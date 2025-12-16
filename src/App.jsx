@@ -1,6 +1,6 @@
-// src/App.jsx (同一銘柄統合 + 売却バグ修正版)
-import React, { useState, useEffect } from 'react';
-import { loadPortfolio, savePortfolio, getSellHistory } from './utils/storage';
+// src/App.jsx (履歴統合 + バックアップ機能追加版)
+import React, { useState, useEffect, useRef } from 'react';
+import { loadPortfolio, savePortfolio, getSellHistory, saveSellHistory, exportData, importData } from './utils/storage';
 import { updateAllPrices, rebuildAllHistory, regenerateDailySnapshots } from './utils/priceAPI';
 import { getDailySnapshots } from './utils/database';
 import AddAssetModal from './components/AddAssetModal';
@@ -25,6 +25,7 @@ function App() {
   const [snapshotData, setSnapshotData] = useState([]);
   const [activeTab, setActiveTab] = useState('overview');
   const [toasts, setToasts] = useState([]);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     const loadedPortfolio = loadPortfolio();
@@ -73,18 +74,10 @@ function App() {
     }
   };
 
-  // 🔥 修正: 売却処理（portfolio.quantityは変更せず、売却履歴のみ使用）
   const handleSellAsset = (soldAsset) => {
-    // portfolioのquantityは変更しない
-    // 売却履歴はSellAssetModal内で既にaddSellRecordで保存済み
-    // getActivePortfolioで売却履歴を参照してactiveQuantityを計算する
-    
-    // ポートフォリオは変更不要だが、UIを更新するためにステートを更新
+    // portfolioのquantityは変更せず、売却履歴のみで管理
     setPortfolio([...portfolio]);
-    
-    // スナップショットを再読み込み
     loadSnapshots();
-    
     addNotification('資産を売却しました', 'success');
   };
 
@@ -111,49 +104,112 @@ function App() {
     }
   };
 
-  const handleRebuildHistory = async () => {
-    if (!window.confirm('全履歴データを再構築しますか？（数分かかる場合があります）')) {
+  // 🔥 統合: 履歴再構築 + スナップショット再生成
+  const handleRebuildHistoryAndSnapshots = async () => {
+    if (!window.confirm('全履歴データとスナップショットを再構築しますか？\n（数分かかる場合があります）')) {
       return;
     }
 
     setIsLoading(true);
     try {
-      const result = await rebuildAllHistory(portfolio);
+      // ステップ1: 履歴再構築
+      addNotification('📚 履歴データを取得中...', 'info');
+      const historyResult = await rebuildAllHistory(portfolio);
       
-      if (result.errors) {
-        addNotification(`履歴再構築完了\n\nエラー:\n${result.errors.join('\n')}`, 'warning');
+      if (historyResult.errors) {
+        addNotification(`履歴取得完了（一部エラーあり）\n\nエラー:\n${historyResult.errors.join('\n')}`, 'warning');
       } else {
-        addNotification(`履歴データの取得が完了しました！\n最古の購入日: ${result.oldestDate}`, 'success');
+        addNotification(`履歴データの取得が完了しました！\n最古の購入日: ${historyResult.oldestDate}`, 'success');
+      }
+
+      // ステップ2: スナップショット再生成
+      addNotification('📸 スナップショットを再生成中...', 'info');
+      const snapshotResult = await regenerateDailySnapshots(portfolio);
+      
+      if (snapshotResult.success) {
+        addNotification(`✅ 全再構築完了！\n${snapshotResult.snapshotCount}日分のデータを生成しました`, 'success');
+        await loadSnapshots();
+      } else {
+        addNotification('スナップショット再生成に失敗しました', 'error');
       }
     } catch (error) {
       console.error('履歴再構築エラー:', error);
-      addNotification('履歴再構築中にエラーが発生しました', 'error');
+      addNotification('履歴再構築中にエラーが発生しました: ' + error.message, 'error');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleRegenerateSnapshots = async () => {
-    if (!window.confirm('日次スナップショットを再生成しますか？（数分かかる場合があります）')) {
-      return;
-    }
-
-    setIsLoading(true);
+  // 🔥 新機能: バックアップのエクスポート
+  const handleExportBackup = () => {
     try {
-      const result = await regenerateDailySnapshots(portfolio);
+      const data = exportData();
+      const dataStr = JSON.stringify(data, null, 2);
+      const dataBlob = new Blob([dataStr], { type: 'application/json' });
       
-      if (result.success) {
-        addNotification(`スナップショット再生成完了！\n${result.snapshotCount}日分のデータを生成しました`, 'success');
-        await loadSnapshots();
-      } else {
-        addNotification(result.message || 'スナップショット再生成に失敗しました', 'error');
-      }
+      const url = URL.createObjectURL(dataBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `portfolio-backup-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      addNotification('バックアップをダウンロードしました', 'success');
     } catch (error) {
-      console.error('スナップショット再生成エラー:', error);
-      addNotification('スナップショット再生成中にエラーが発生しました: ' + error.message, 'error');
-    } finally {
-      setIsLoading(false);
+      console.error('バックアップエラー:', error);
+      addNotification('バックアップの作成に失敗しました', 'error');
     }
+  };
+
+  // 🔥 新機能: バックアップのインポート
+  const handleImportBackup = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = JSON.parse(e.target.result);
+        
+        // データの検証
+        if (!data.portfolio || !Array.isArray(data.portfolio)) {
+          throw new Error('無効なバックアップファイルです');
+        }
+
+        if (!window.confirm(
+          `バックアップをインポートしますか？\n\n` +
+          `銘柄数: ${data.portfolio.length}\n` +
+          `売却履歴: ${data.sellHistory?.length || 0}件\n` +
+          `バックアップ日時: ${new Date(data.exportDate).toLocaleString('ja-JP')}\n\n` +
+          `現在のデータは上書きされます。`
+        )) {
+          return;
+        }
+
+        // インポート実行
+        const success = importData(data);
+        
+        if (success) {
+          // データを再読み込み
+          const loadedPortfolio = loadPortfolio();
+          setPortfolio(loadedPortfolio);
+          loadSnapshots();
+          addNotification('バックアップをインポートしました', 'success');
+        } else {
+          throw new Error('インポートに失敗しました');
+        }
+      } catch (error) {
+        console.error('インポートエラー:', error);
+        addNotification('バックアップの読み込みに失敗しました: ' + error.message, 'error');
+      }
+    };
+
+    reader.readAsText(file);
+    
+    // input要素をリセット（同じファイルを再度選択できるように）
+    event.target.value = '';
   };
 
   const openEditModal = (asset) => {
@@ -171,59 +227,46 @@ function App() {
     setIsDetailModalOpen(true);
   };
 
-  // 🔥 修正: 同一銘柄を統合して表示
   const getConsolidatedPortfolio = () => {
     const sellHistory = getSellHistory();
     const consolidated = {};
 
     portfolio.forEach(asset => {
-      // 銘柄の識別キー（銘柄名を使用）
       const key = asset.name;
 
       if (consolidated[key]) {
-        // 既存の銘柄に追加
         const existing = consolidated[key];
-        
-        // 数量を加算
         existing.originalQuantity += asset.quantity;
         
-        // 加重平均で取得単価を計算
         const totalCost = (existing.purchasePrice * existing.quantity) + (asset.purchasePrice * asset.quantity);
         const totalQuantity = existing.quantity + asset.quantity;
         existing.purchasePrice = totalCost / totalQuantity;
         existing.quantity = totalQuantity;
         
-        // 購入日は最も古い日付を使用
         if (new Date(asset.purchaseDate) < new Date(existing.purchaseDate)) {
           existing.purchaseDate = asset.purchaseDate;
         }
         
-        // IDリストに追加（売却履歴の取得に使用）
         existing.assetIds.push(asset.id);
         
-        // タグをマージ
         if (asset.tags) {
           existing.tags = [...new Set([...(existing.tags || []), ...asset.tags])];
         }
         
-        // 現在価格は最新のものを使用
         if (asset.currentPrice) {
           existing.currentPrice = asset.currentPrice;
         }
       } else {
-        // 新規銘柄
         consolidated[key] = {
           ...asset,
-          assetIds: [asset.id], // 元のIDのリスト
-          originalQuantity: asset.quantity, // 元の購入数量
+          assetIds: [asset.id],
+          originalQuantity: asset.quantity,
           isConsolidated: true
         };
       }
     });
 
-    // 売却数量を計算
     return Object.values(consolidated).map(asset => {
-      // この銘柄の全IDの売却履歴を取得
       const soldQuantity = asset.assetIds.reduce((sum, id) => {
         const sold = sellHistory
           .filter(record => record.originalAssetId === id)
@@ -291,6 +334,15 @@ function App() {
         ))}
       </div>
 
+      {/* 非表示のファイル入力 */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".json"
+        onChange={handleImportBackup}
+        style={{ display: 'none' }}
+      />
+
       <header>
         <h1>📊 ポートフォリオ管理システム</h1>
         <div className="header-buttons">
@@ -298,11 +350,14 @@ function App() {
           <button onClick={handleUpdatePrices} disabled={isLoading}>
             {isLoading ? '⏳ 更新中...' : '🔄 価格更新'}
           </button>
-          <button onClick={handleRebuildHistory} disabled={isLoading}>
-            📚 履歴再構築
+          <button onClick={handleRebuildHistoryAndSnapshots} disabled={isLoading}>
+            {isLoading ? '⏳ 処理中...' : '🔄 履歴再構築'}
           </button>
-          <button onClick={handleRegenerateSnapshots} disabled={isLoading}>
-            📸 スナップショット再生成
+          <button onClick={handleExportBackup} disabled={isLoading}>
+            💾 バックアップ
+          </button>
+          <button onClick={() => fileInputRef.current?.click()} disabled={isLoading}>
+            📥 インポート
           </button>
         </div>
       </header>
