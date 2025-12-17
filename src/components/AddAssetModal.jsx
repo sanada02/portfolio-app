@@ -1,4 +1,4 @@
-// src/components/AddAssetModal.jsx (改善版 + 既存銘柄選択機能)
+// src/components/AddAssetModal.jsx (バグ修正版)
 import { useState, useEffect } from 'react';
 import { AlertCircle, CheckCircle, Loader } from 'lucide-react';
 import { getTodayJST } from '../utils/dateUtils';
@@ -139,7 +139,7 @@ export default function AddAssetModal({ onClose, onAdd, addNotification, portfol
           setValidationStatus('valid');
           setValidationMessage(`✓ 確認完了: ${result.currency} ${result.price.toLocaleString()}`);
           
-          // 🔥 改善: 通貨がまだJPYのままの場合のみ上書き
+          // 通貨がまだJPYのままの場合のみ上書き
           setFormData(prev => {
             const shouldUpdateCurrency = prev.currency === 'JPY' || prev.type === 'fund';
             return {
@@ -160,8 +160,14 @@ export default function AddAssetModal({ onClose, onAdd, addNotification, portfol
   };
 
   const handleSubmit = async () => {
-    if (!formData.name || !formData.quantity || !formData.purchaseDate) {
-      addNotification('必須項目を入力してください(銘柄名、数量、購入日)', 'warning');
+    // 🔥 修正: より厳密なバリデーション
+    if (!formData.name || !formData.name.trim()) {
+      addNotification('銘柄名を入力してください', 'warning');
+      return;
+    }
+    
+    if (!formData.quantity || !formData.purchaseDate) {
+      addNotification('必須項目を入力してください（数量、購入日）', 'warning');
       return;
     }
     
@@ -175,19 +181,20 @@ export default function AddAssetModal({ onClose, onAdd, addNotification, portfol
       return;
     }
 
-    // 🔥 改善: 購入日が未来でないかチェック
-    const purchaseDate = new Date(formData.purchaseDate);
+    // 🔥 修正: 日本時間で日付を正確に比較
+    const purchaseDate = new Date(formData.purchaseDate + 'T00:00:00+09:00'); // 日本時間で解釈
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const todayJST = new Date(today.toLocaleString('en-US', { timeZone: 'Asia/Tokyo' }));
+    todayJST.setHours(0, 0, 0, 0);
     
-    if (purchaseDate > today) {
+    if (purchaseDate > todayJST) {
       addNotification('購入日が未来の日付になっています', 'warning');
       return;
     }
 
-    // 🔥 改善: 数量が負の値でないかチェック
+    // 🔥 修正: 数値バリデーションを強化
     const quantity = parseFloat(formData.quantity);
-    if (isNaN(quantity) || quantity <= 0) {
+    if (isNaN(quantity) || quantity <= 0 || !isFinite(quantity)) {
       addNotification('数量は正の数値を入力してください', 'warning');
       return;
     }
@@ -212,8 +219,8 @@ export default function AddAssetModal({ onClose, onAdd, addNotification, portfol
     
     let purchasePrice = formData.purchasePrice ? parseFloat(formData.purchasePrice) : null;
     
-    // 🔥 改善: 取得単価のバリデーション
-    if (purchasePrice && (isNaN(purchasePrice) || purchasePrice <= 0)) {
+    // 🔥 修正: 取得単価のバリデーション
+    if (purchasePrice && (isNaN(purchasePrice) || purchasePrice <= 0 || !isFinite(purchasePrice))) {
       addNotification('取得単価は正の数値を入力してください', 'warning');
       return;
     }
@@ -241,11 +248,14 @@ export default function AddAssetModal({ onClose, onAdd, addNotification, portfol
       }
     }
     
+    // 🔥 修正: より安全なID生成
+    const { generateId } = await import('../utils/storage');
+    
     const newAsset = {
-      id: Date.now().toString(),
+      id: generateId(),
       type: formData.type,
-      symbol: formData.symbol,
-      name: formData.name,
+      symbol: formData.symbol.trim(),
+      name: formData.name.trim(),
       quantity: quantity,
       purchasePrice: purchasePrice,
       currentPrice: purchasePrice,
@@ -253,8 +263,8 @@ export default function AddAssetModal({ onClose, onAdd, addNotification, portfol
       purchaseDate: formData.purchaseDate,
       tags: formData.tags,
       ...(formData.type === 'fund' && {
-        isinCd: formData.isinCd,
-        associFundCd: formData.associFundCd
+        isinCd: formData.isinCd.trim(),
+        associFundCd: formData.associFundCd.trim()
       })
     };
     
@@ -440,7 +450,7 @@ export default function AddAssetModal({ onClose, onAdd, addNotification, portfol
               name="purchaseDate" 
               value={formData.purchaseDate} 
               onChange={handleInputChange} 
-              max={new Date().toISOString().split('T')[0]}
+              max={getTodayJST()}
             />
             <small className="form-hint">※未来の日付は選択できません</small>
           </div>

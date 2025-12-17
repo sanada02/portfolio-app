@@ -1,4 +1,4 @@
-// src/utils/storage.js
+// src/utils/storage.js (バグ修正版)
 const PORTFOLIO_KEY = 'portfolio_data';
 const SELL_HISTORY_KEY = 'sell_history';
 
@@ -9,6 +9,15 @@ export const assetTypeNames = {
   etf: 'ETF',
   crypto: '仮想通貨',
   other: 'その他'
+};
+
+// 🔥 修正: より安全なID生成（カウンターを追加して重複を防止）
+let idCounter = 0;
+export const generateId = () => {
+  const timestamp = Date.now();
+  const random = Math.random().toString(36).substr(2, 9);
+  const counter = (idCounter++).toString(36);
+  return `${timestamp}_${counter}_${random}`;
 };
 
 // ポートフォリオの読み込み
@@ -41,12 +50,12 @@ export const getSellHistory = () => {
     
     // IDがない古いデータに対してIDを付与
     let needsSave = false;
-    const updatedHistory = history.map((record, index) => {
+    const updatedHistory = history.map((record) => {
       if (!record.id) {
         needsSave = true;
         return {
           ...record,
-          id: `${Date.now()}_${index}_${Math.random().toString(36).substr(2, 9)}`
+          id: generateId()
         };
       }
       return record;
@@ -79,9 +88,8 @@ export const saveSellHistory = (sellHistory) => {
 export const addSellRecord = (record) => {
   try {
     const history = getSellHistory();
-    // より確実なID生成（ミリ秒 + ランダム文字列）
     const newRecord = {
-      id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: generateId(),
       timestamp: new Date().toISOString(),
       ...record
     };
@@ -136,7 +144,8 @@ export const exportData = () => {
     return {
       portfolio,
       sellHistory,
-      exportDate: new Date().toISOString()
+      exportDate: new Date().toISOString(),
+      version: '1.0.0' // 🔥 追加: バージョン情報
     };
   } catch (error) {
     console.error('データのエクスポートエラー:', error);
@@ -147,10 +156,15 @@ export const exportData = () => {
 // データのインポート
 export const importData = (data) => {
   try {
-    if (data.portfolio) {
+    // 🔥 修正: データの検証を追加
+    if (!data || typeof data !== 'object') {
+      throw new Error('無効なデータ形式です');
+    }
+    
+    if (data.portfolio && Array.isArray(data.portfolio)) {
       savePortfolio(data.portfolio);
     }
-    if (data.sellHistory) {
+    if (data.sellHistory && Array.isArray(data.sellHistory)) {
       saveSellHistory(data.sellHistory);
     }
     return true;
@@ -160,23 +174,24 @@ export const importData = (data) => {
   }
 };
 
-// ユーティリティ: IDの生成
-export const generateId = () => {
-  return `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-};
-
 // ユーティリティ: 資産の検索
 export const findAssetById = (portfolio, assetId) => {
+  if (!portfolio || !Array.isArray(portfolio)) {
+    return null;
+  }
   return portfolio.find(asset => asset.id === assetId);
 };
 
 // ユーティリティ: 資産の重複チェック
 export const isDuplicateAsset = (portfolio, symbol, isinCd) => {
+  if (!portfolio || !Array.isArray(portfolio)) {
+    return false;
+  }
   return portfolio.some(asset => {
-    if (symbol) {
+    if (symbol && asset.symbol) {
       return asset.symbol === symbol;
     }
-    if (isinCd) {
+    if (isinCd && asset.isinCd) {
       return asset.isinCd === isinCd;
     }
     return false;
