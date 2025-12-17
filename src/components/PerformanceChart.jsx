@@ -540,8 +540,11 @@ const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
               </div>
             </div>
           </div>
-          <div style={{ fontSize: '11px', marginTop: '8px', opacity: 0.8 }}>
-            年平均成長率 / 最大ドローダウン
+          <div style={{ fontSize: '11px', marginTop: '8px', opacity: 0.8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>年平均成長率 / 最大ドローダウン</span>
+            <span style={{ fontWeight: 'bold', fontSize: '12px' }}>
+              {mdd !== 0 ? (cagr / Math.abs(mdd)).toFixed(2) : '∞'}
+            </span>
           </div>
         </div>
       </div>
