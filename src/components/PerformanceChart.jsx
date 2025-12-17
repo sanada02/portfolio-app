@@ -54,7 +54,7 @@ const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
   }, [data, selectedPeriod]);
 
   // 最新の評価額と損益の計算（useMemoを早期リターンの前に）
-  const { totalValueJPY, totalValueUSD, change, changePercent, isPositive, initialValue, firstSnapshot, chartData } = useMemo(() => {
+  const { totalValueJPY, totalValueUSD, change, changePercent, isPositive, initialValue, firstSnapshot, chartData, latestExchangeRate } = useMemo(() => {
     // データがない場合のデフォルト値
     if (!data || data.length === 0 || filteredData.length === 0) {
       return {
@@ -65,7 +65,8 @@ const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
         isPositive: false,
         initialValue: 0,
         firstSnapshot: null,
-        chartData: []
+        chartData: [],
+        latestExchangeRate: exchangeRate // propsから取得した値をデフォルトとして使用
       };
     }
 
@@ -91,6 +92,9 @@ const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
     const finalTotalJPY = (portfolio && portfolio.length > 0) ? calcTotalJPY : (latestFilteredData?.totalValueJPY || 0);
     const finalTotalUSD = (portfolio && portfolio.length > 0) ? calcTotalUSD : (latestFilteredData?.totalValueUSD || 0);
 
+    // 最新の為替レートをスナップショットから取得（なければpropsの値を使用）
+    const snapshotExchangeRate = latestFilteredData?.exchangeRate || exchangeRate;
+
     const firstSnap = filteredData[0];
     const initValue = firstSnap?.totalValueJPY || 0;
     const calcChange = finalTotalJPY - initValue;
@@ -112,9 +116,35 @@ const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
       isPositive: calcIsPositive,
       initialValue: initValue,
       firstSnapshot: firstSnap,
-      chartData: calcChartData
+      chartData: calcChartData,
+      latestExchangeRate: snapshotExchangeRate
     };
   }, [data, filteredData, portfolio, exchangeRate]);
+
+  // 為替レートのY軸範囲を計算
+  const exchangeRateRange = useMemo(() => {
+    if (!showExchangeRate || chartData.length === 0) {
+      return { min: 140, max: 160 };
+    }
+    
+    const rates = chartData
+      .map(d => d.exchangeRate)
+      .filter(rate => rate != null && rate > 0);
+    
+    if (rates.length === 0) {
+      return { min: 140, max: 160 };
+    }
+    
+    const minRate = Math.min(...rates);
+    const maxRate = Math.max(...rates);
+    const range = maxRate - minRate;
+    const padding = range > 0 ? range * 0.1 : 5; // 10%のパディング、または最低5円
+    
+    return {
+      min: Math.floor(minRate - padding),
+      max: Math.ceil(maxRate + padding)
+    };
+  }, [chartData, showExchangeRate]);
 
   // 早期リターン（すべてのフックの後に）
   if (!data || data.length === 0) {
@@ -359,7 +389,7 @@ const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
                 USD資産: ${Math.round(totalValueUSD).toLocaleString()}
               </div>
               <div style={{ fontSize: '12px', marginTop: '4px', opacity: 0.8 }}>
-                レート: ¥{exchangeRate.toFixed(2)}/USD
+                レート: ¥{latestExchangeRate.toFixed(2)}/USD
               </div>
             </>
           )}
@@ -436,6 +466,7 @@ const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
               stroke="#f59e0b"
               style={{ fontSize: '12px' }}
               tickFormatter={(value) => `¥${value.toFixed(0)}`}
+              domain={[exchangeRateRange.min, exchangeRateRange.max]}
             />
           )}
           <Tooltip content={<CustomTooltip />} />
