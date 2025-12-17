@@ -1257,11 +1257,13 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
         }}>
           <div style={{ fontSize: '14px', marginBottom: '8px', opacity: 0.9 }}>
             投資パフォーマンス
-            {pseudoCagr !== null && <span style={{ fontSize: '11px', marginLeft: '6px' }}>（疑似CAGR）</span>}
+            {pseudoCagr !== null && <span style={{ fontSize: '11px', marginLeft: '6px' }}>（疑似CAGR:売買日で区間分割した時間加重CAGR）</span>}
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <div style={{ fontSize: '13px', opacity: 0.9, marginBottom: '4px' }}>CAGR</div>
+              <div style={{ fontSize: '13px', opacity: 0.9, marginBottom: '4px' }}>
+                {pseudoCagr !== null && '疑似'}CAGR
+              </div>
               <div style={{ fontSize: '22px', fontWeight: 'bold' }}>
                 {cagr >= 0 ? '+' : ''}{cagr.toFixed(2)}%
               </div>
@@ -1304,11 +1306,6 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
                 <span style={{ fontSize: '10px' }}>（クリックで詳細）</span>
               </div>
               <div id="cagr-details" style={{ display: 'none', marginTop: '6px' }}>
-                {pseudoCagr !== null && (
-                  <div style={{ marginBottom: '3px' }}>
-                    疑似CAGR: {pseudoCagr >= 0 ? '+' : ''}{pseudoCagr.toFixed(2)}%
-                  </div>
-                )}
                 {realCagr !== 0 && (
                   <div style={{ marginBottom: '3px' }}>
                     通常CAGR: {realCagr >= 0 ? '+' : ''}{realCagr.toFixed(2)}%
@@ -1319,9 +1316,6 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
                     計算区間: {tradeInfo.validSegmentCount}区間
                   </div>
                 )}
-                <div style={{ marginTop: '4px', fontSize: '10px', opacity: 0.8 }}>
-                  ※疑似CAGR: 売買を考慮した時間加重リターン
-                </div>
               </div>
             </div>
           )}
