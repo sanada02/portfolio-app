@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts';
 
-const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
+const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHistory = [] }) => {
   const [selectedPeriod, setSelectedPeriod] = useState('30d');
   const [showExchangeRate, setShowExchangeRate] = useState(false);
   const [showProfit, setShowProfit] = useState(false);
@@ -10,6 +10,8 @@ const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
   const [activeTab, setActiveTab] = useState('total');  // ← この行が必要
   const [selectedAssets, setSelectedAssets] = useState([]);  // ← この行が必要
   const [selectedTags, setSelectedTags] = useState([]);  // ← この行が必要
+  
+  // getTradeDatesで sellHistory の代わりに loadedSellHistory を使用
 
   // データを日付でソートし、期間に応じてフィルタリング
   const { sortedData, filteredData } = useMemo(() => {
@@ -118,6 +120,13 @@ const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
         assetValues, // 銘柄ごとの評価額
         tagValues // タグごとの評価額
       };
+    })
+    .filter(snapshot => {
+      // 銘柄別・タグ別の場合、評価額0円のスナップショットを除外
+      if (activeTab === 'byAsset' || activeTab === 'byTag') {
+        return snapshot.totalValueJPY > 0;
+      }
+      return true; // 全体タブの場合はすべて含める
     });
   }, [filteredData, activeTab, selectedAssets, selectedTags]);
 
@@ -247,31 +256,254 @@ const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
     };
   }, [chartData, showExchangeRate]);
 
-  // CAGRとMDDを計算
-    const { cagr, mdd } = useMemo(() => {
-    if (!chartData || chartData.length < 2 || initialValue === 0) {
-      return { cagr: 0, mdd: 0 };
+  // 売買日を取得する関数（portfolio + sellHistory）
+  // 売買日を取得する関数（portfolio + sellHistory）
+  const getTradeDates = useMemo(() => {
+    
+    const tradeDates = new Set();
+    
+    if (!portfolio || portfolio.length === 0) {
+      return [];
+    }
+    
+    // フィルタリングされた銘柄のIDセットを作成
+    let filteredAssets = portfolio;
+    if (activeTab === 'byAsset' && selectedAssets.length > 0) {
+      filteredAssets = portfolio.filter(asset => selectedAssets.includes(asset.id));
+    } else if (activeTab === 'byTag' && selectedTags.length > 0) {
+      filteredAssets = portfolio.filter(asset => 
+        asset.tags && asset.tags.some(tag => selectedTags.includes(tag))
+      );
+    }
+    
+    // フィルタリングされた銘柄のIDセット
+    const filteredAssetIds = new Set(filteredAssets.map(a => a.id));
+    
+    // また、統合されている場合はassetIdsも含める
+    filteredAssets.forEach(asset => {
+      if (asset.assetIds && Array.isArray(asset.assetIds)) {
+        asset.assetIds.forEach(id => filteredAssetIds.add(id));
+      }
+    });
+    
+    // 1. rawPortfolio（統合前の全レコード）から全購入日を取得
+    const sourcePortfolio = rawPortfolio || portfolio;
+    sourcePortfolio.forEach(asset => {
+      // フィルタリングされた銘柄のみ
+      if (filteredAssetIds.has(asset.id)) {
+        if (asset.purchaseDate) {
+          tradeDates.add(asset.purchaseDate);
+        }
+      }
+    });
+    
+    // 2. sellHistoryから売却日を取得
+    if (sellHistory && Array.isArray(sellHistory)) {
+      sellHistory.forEach(sale => {
+        // フィルタリングされた銘柄のみ
+        if (filteredAssetIds.has(sale.originalAssetId)) {
+          if (sale.sellDate) {
+            tradeDates.add(sale.sellDate);
+          }
+        }
+      });
+    }
+    
+    const sortedDates = Array.from(tradeDates).sort();
+    
+    return sortedDates;
+  }, [portfolio, rawPortfolio, sellHistory, activeTab, selectedAssets, selectedTags]);
+
+  // 疑似CAGR計算関数（区間分割・時間加重リターン）
+  const calculatePseudoCAGR = (chartData, tradeDates, startDate, endDate) => {
+    if (!chartData || chartData.length < 2) {
+      return null;
     }
 
-    // CAGR計算（期間内の年率換算リターン）
-    const startValue = initialValue;
-    const endValue = totalValueJPY;
+    // 期間内の売買日のみを抽出（境界を含む）
+    const tradesInPeriod = tradeDates.filter(tradeDate => {
+      const date = new Date(tradeDate);
+      return date >= startDate && date <= endDate;
+    }).map(d => new Date(d)).sort((a, b) => a - b);
+
+    // 売買がない場合はnullを返す
+    if (tradesInPeriod.length === 0) {
+      return null;
+    }
+
+    // 日付から評価額を取得する関数（直近過去日で補完）
+    const getValueAtDate = (date) => {
+      const dateStr = date.toISOString().split('T')[0];
+      
+      // 完全一致を探す
+      const exact = chartData.find(d => d.date === dateStr);
+      if (exact) return exact.totalValueJPY;
+      
+      // 直近過去日を探す
+      const pastData = chartData
+        .filter(d => new Date(d.date) <= date)
+        .sort((a, b) => new Date(b.date) - new Date(a.date));
+      
+      return pastData.length > 0 ? pastData[0].totalValueJPY : 0;
+    };
+
+    // 区切り点を生成
+    // 売買日の前日終値と売買日当日（売買後）で区間を分割
+    const breakpoints = [];
+    
+    // 最初の売買日（初回購入日）を実質的な開始日とする
+    // 購入前の期間は保有がないため計算に含めない
+    
+    tradesInPeriod.forEach((tradeDay, index) => {
+      // 売買日の前日を区間終了日とする
+      const dayBefore = new Date(tradeDay);
+      dayBefore.setDate(dayBefore.getDate() - 1);
+      
+      // 前日が期間開始日以降かつ、前の売買日以降の場合のみ追加
+      if (dayBefore >= startDate) {
+        // 前の売買日と連続していないかチェック
+        if (index === 0 || dayBefore > tradesInPeriod[index - 1]) {
+          breakpoints.push(dayBefore);
+        }
+      }
+      
+      // 売買日を次の区間の開始日とする
+      breakpoints.push(tradeDay);
+    });
+    
+    // 最後の売買日より後に期間終了日がある場合は追加
+    const lastTrade = tradesInPeriod[tradesInPeriod.length - 1];
+    if (endDate > lastTrade) {
+      breakpoints.push(endDate);
+    } else if (endDate.getTime() !== lastTrade.getTime()) {
+      // 終了日が最後の売買日と異なる場合は追加
+      breakpoints.push(endDate);
+    }
+    
+    // 重複を削除してソート
+    const uniqueBreakpoints = [...new Set(breakpoints.map(d => d.getTime()))]
+      .sort((a, b) => a - b)
+      .map(t => new Date(t));
+
+    // 各区間のリターンを計算
+    const segments = [];
+    let totalMultiplier = 1;
+    let firstValidDate = null;
+    let validSegmentCount = 0;
+
+    for (let i = 0; i < uniqueBreakpoints.length - 1; i++) {
+      const segmentStart = uniqueBreakpoints[i];
+      const segmentEnd = uniqueBreakpoints[i + 1];
+      
+      const startValue = getValueAtDate(segmentStart);
+      const endValue = getValueAtDate(segmentEnd);
+      
+      // 期間が1日以下の場合はスキップ（連続売買の中間区間）
+      const daysDiff = (segmentEnd - segmentStart) / (24 * 60 * 60 * 1000);
+      
+      // 1日以下の区間はスキップ
+      if (daysDiff <= 1) {
+        continue;
+      }
+      
+      if (startValue > 0) {
+        if (firstValidDate === null) {
+          firstValidDate = segmentStart;
+        }
+        
+        const segmentReturn = (endValue - startValue) / startValue;
+        const multiplier = 1 + segmentReturn;
+        totalMultiplier *= multiplier;
+        validSegmentCount++;
+        
+        segments.push({
+          start: segmentStart,
+          end: segmentEnd,
+          startValue,
+          endValue,
+          return: segmentReturn,
+          multiplier
+        });      
+      } 
+    }
+
+    // 有効な区間がない場合
+    if (validSegmentCount === 0 || firstValidDate === null) {
+      return null;
+    }
+
+    // 有効な区間が1つだけの場合は通常のCAGRと同じになるので、nullを返す
+    if (validSegmentCount === 1) {
+      return null;
+    }
+
+    // 初回有効日から終了日までの年数
+    const days = (endDate - firstValidDate) / (24 * 60 * 60 * 1000);
+    const years = days / 365.25;
+
+    if (years <= 0) {
+      return null;
+    }
+
+    // 疑似CAGR = total_multiplier^(1 / years) - 1
+    const pseudoCAGR = (Math.pow(totalMultiplier, 1 / years) - 1) * 100;
+
+    return {
+      pseudoCAGR,
+      segments,
+      totalMultiplier,
+      years,
+      firstValidDate,
+      validSegmentCount
+    };
+  };
+
+  // CAGRとMDDを計算
+  const { cagr, mdd, pseudoCagr, realCagr, hasTrades, tradeInfo } = useMemo(() => {
+    if (!chartData || chartData.length < 2 || initialValue === 0) {
+      return { 
+        cagr: 0, 
+        mdd: 0, 
+        pseudoCagr: null, 
+        realCagr: 0, 
+        hasTrades: false,
+        tradeInfo: null 
+      };
+    }
+
     const startDate = new Date(chartData[0].date);
     const endDate = new Date(chartData[chartData.length - 1].date);
+    
+    // 🔥 修正: 期間内に売買があるかチェック（境界を含む）
+    const tradesInPeriod = getTradeDates.filter(tradeDate => {
+      const date = new Date(tradeDate);
+      return date >= startDate && date <= endDate;
+    });
+    const hasTradesInPeriod = tradesInPeriod.length > 0;  
+
+    // 通常のCAGR計算
+    const startValue = initialValue;
+    const endValue = totalValueJPY;
     const days = (endDate - startDate) / (24 * 60 * 60 * 1000);
     const years = days / 365.25;
     
-    let calculatedCagr = 0;
-    if (years > 0 && startValue > 0 && endValue > 0) {
-      // CAGR = (終値/始値)^(1/年数) - 1
-      calculatedCagr = (Math.pow(endValue / startValue, 1 / years) - 1) * 100;
-    } else if (years <= 0) {
-      // 1年未満の場合は単純リターンを年率換算
-      const simpleReturn = (endValue - startValue) / startValue;
-      calculatedCagr = simpleReturn * (365.25 / Math.max(days, 1)) * 100;
+    let calculatedRealCagr = 0;
+    if (startValue > 0 && endValue > 0 && years > 0) {
+      calculatedRealCagr = (Math.pow(endValue / startValue, 1 / years) - 1) * 100;
     }
 
-    // MDD（最大ドローダウン）計算 - chartDataを使用
+    // 疑似CAGR計算
+    const pseudoResult = hasTradesInPeriod 
+      ? calculatePseudoCAGR(chartData, getTradeDates, startDate, endDate)
+      : null;
+    const calculatedPseudoCagr = pseudoResult ? pseudoResult.pseudoCAGR : null;
+
+    // 表示用CAGR（売買があり疑似CAGRが計算できた場合のみ疑似CAGRを使用）
+    const displayCagr = calculatedPseudoCagr !== null 
+      ? calculatedPseudoCagr 
+      : calculatedRealCagr;
+
+    // MDD計算
     let maxValue = chartData[0].totalValueJPY;
     let maxDrawdown = 0;
     
@@ -286,10 +518,21 @@ const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
     }
 
     return {
-      cagr: calculatedCagr,
-      mdd: maxDrawdown
+      cagr: displayCagr,
+      mdd: maxDrawdown,
+      pseudoCagr: calculatedPseudoCagr,
+      realCagr: calculatedRealCagr,
+      hasTrades: hasTradesInPeriod,
+      tradeInfo: pseudoResult ? {
+        segments: pseudoResult.segments,
+        totalMultiplier: pseudoResult.totalMultiplier,
+        years: pseudoResult.years,
+        firstValidDate: pseudoResult.firstValidDate,
+        tradeDatesInPeriod: tradesInPeriod,
+        validSegmentCount: pseudoResult.validSegmentCount
+      } : null
     };
-  }, [chartData, initialValue, totalValueJPY]);
+  }, [chartData, initialValue, totalValueJPY, getTradeDates]);
 
   // 全期間表示時は月次データに変換
   const displayData = useMemo(() => {
@@ -825,7 +1068,10 @@ const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
           borderRadius: '10px',
           boxShadow: '0 4px 12px rgba(240, 147, 251, 0.3)'
         }}>
-          <div style={{ fontSize: '14px', marginBottom: '8px', opacity: 0.9 }}>投資パフォーマンス</div>
+          <div style={{ fontSize: '14px', marginBottom: '8px', opacity: 0.9 }}>
+            投資パフォーマンス
+            {pseudoCagr !== null && <span style={{ fontSize: '11px', marginLeft: '6px' }}>（疑似CAGR）</span>}
+          </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
               <div style={{ fontSize: '13px', opacity: 0.9, marginBottom: '4px' }}>CAGR</div>
@@ -846,6 +1092,52 @@ const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
               {mdd !== 0 ? (cagr / Math.abs(mdd)).toFixed(2) : '∞'}
             </span>
           </div>
+          
+          {/* 売買情報（クリックで表示） */}
+          {hasTrades && tradeInfo && (
+            <div 
+              onClick={() => {
+                const details = document.getElementById('cagr-details');
+                if (details) {
+                  details.style.display = details.style.display === 'none' ? 'block' : 'none';
+                }
+              }}
+              style={{ 
+                marginTop: '10px', 
+                paddingTop: '10px', 
+                borderTop: '1px solid rgba(255,255,255,0.3)',
+                fontSize: '11px',
+                opacity: 0.9,
+                cursor: 'pointer',
+                userSelect: 'none'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <span>📊 期間内売買: {tradeInfo.tradeDatesInPeriod.length}件</span>
+                <span style={{ fontSize: '10px' }}>（クリックで詳細）</span>
+              </div>
+              <div id="cagr-details" style={{ display: 'none', marginTop: '6px' }}>
+                {pseudoCagr !== null && (
+                  <div style={{ marginBottom: '3px' }}>
+                    疑似CAGR: {pseudoCagr >= 0 ? '+' : ''}{pseudoCagr.toFixed(2)}%
+                  </div>
+                )}
+                {realCagr !== 0 && (
+                  <div style={{ marginBottom: '3px' }}>
+                    通常CAGR: {realCagr >= 0 ? '+' : ''}{realCagr.toFixed(2)}%
+                  </div>
+                )}
+                {tradeInfo.validSegmentCount && (
+                  <div style={{ marginTop: '4px', fontSize: '10px', opacity: 0.8 }}>
+                    計算区間: {tradeInfo.validSegmentCount}区間
+                  </div>
+                )}
+                <div style={{ marginTop: '4px', fontSize: '10px', opacity: 0.8 }}>
+                  ※疑似CAGR: 売買を考慮した時間加重リターン
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

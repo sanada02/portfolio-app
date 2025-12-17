@@ -1,6 +1,6 @@
 // src/App.jsx (リファクタリング版 - 修正版)
 import React, { useState, useEffect, useRef } from 'react';
-import { loadPortfolio, savePortfolio, exportData, importData } from './utils/storage';
+import { loadPortfolio, savePortfolio, exportData, importData, getSellHistory } from './utils/storage';
 import { updateAllPrices, rebuildAllHistory, regenerateDailySnapshots } from './utils/priceAPI';
 import { getDailySnapshots } from './utils/database';
 import { getConsolidatedPortfolio, getTagAnalysis, getAssetsByTag, getAllUniqueTags } from './utils/portfolioUtils';
@@ -35,12 +35,17 @@ function App() {
   const [toasts, setToasts] = useState([]);
   const [excludeCrypto, setExcludeCrypto] = useState(false);
   const [selectedTags, setSelectedTags] = useState([]);
+  const [sellHistory, setSellHistory] = useState([]);  // ← 追加
   const fileInputRef = useRef(null);
 
   // ========== Initialize ==========
   useEffect(() => {
     const loadedPortfolio = loadPortfolio();
     setPortfolio(loadedPortfolio);
+    
+    const loadedSellHistory = getSellHistory();  // ← 追加
+    setSellHistory(loadedSellHistory);           // ← 追加
+    
     loadSnapshots();
   }, []);
 
@@ -325,7 +330,9 @@ function App() {
           <PerformanceChart 
             data={snapshotData} 
             portfolio={activePortfolio}
+            rawPortfolio={portfolio}
             exchangeRate={exchangeRate}
+            sellHistory={sellHistory}
           />
         </section>
 
