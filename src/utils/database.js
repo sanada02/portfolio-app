@@ -1,4 +1,4 @@
-// src/utils/database.js
+// src/utils/database.js (修正版)
 import Dexie from 'dexie';
 
 // IndexedDB の初期化
@@ -56,7 +56,15 @@ export const saveDailySnapshot = async (date, totalValueJPY, totalValueUSD, brea
   await db.dailySnapshots.put({ date, totalValueJPY, totalValueUSD, breakdown });
 };
 
+// 🔥 修正: daysにnullを渡すと全データを取得できるようにする
 export const getDailySnapshots = async (days = 30) => {
+  // daysがnullの場合は全データを取得
+  if (days === null) {
+    return await db.dailySnapshots
+      .orderBy('date')
+      .toArray();
+  }
+  
   const endDate = new Date();
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);

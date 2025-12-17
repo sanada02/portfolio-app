@@ -1,4 +1,4 @@
-// src/App.jsx (リファクタリング版)
+// src/App.jsx (リファクタリング版 - 修正版)
 import React, { useState, useEffect, useRef } from 'react';
 import { loadPortfolio, savePortfolio, exportData, importData } from './utils/storage';
 import { updateAllPrices, rebuildAllHistory, regenerateDailySnapshots } from './utils/priceAPI';
@@ -44,8 +44,9 @@ function App() {
     loadSnapshots();
   }, []);
 
+  // 🔥 修正: nullを渡して全データを取得
   const loadSnapshots = async () => {
-    const snapshots = await getDailySnapshots();
+    const snapshots = await getDailySnapshots(null);
     setSnapshotData(snapshots);
   };
 
