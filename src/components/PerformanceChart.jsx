@@ -440,7 +440,6 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
   return { pseudoCAGR, segments, totalMultiplier, years, firstValidDate, validSegmentCount };
 };
 
-
   // CAGRとMDDを計算
   const { cagr, mdd, pseudoCagr, realCagr, hasTrades, tradeInfo } = useMemo(() => {
     if (!chartData || chartData.length < 2 || initialValue === 0) {
@@ -457,21 +456,43 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
     const startDate = new Date(chartData[0].date);
     const endDate = new Date(chartData[chartData.length - 1].date);
     
-    // 期間内に売買があるかチェック（境界を含む）
+    // 🔥 修正: 期間内の売買日を正確にフィルタリング
     const tradesInPeriod = getTradeDates.filter(tradeDate => {
       const date = new Date(tradeDate);
-      return date >= startDate && date <= endDate;
+      // 時刻を00:00:00にリセットして比較
+      date.setHours(0, 0, 0, 0);
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999); // 終了日の終わりまで含める
+      
+      return date >= start && date <= end;
     });
+    
     const hasTradesInPeriod = tradesInPeriod.length > 0;
     
-    // 🔥 追加: 初購入かチェック
-    const firstSnapshotDate = new Date(chartData[0].date);
-    const periodStartDate = new Date(startDate);
-    periodStartDate.setHours(0, 0, 0, 0);
-    firstSnapshotDate.setHours(0, 0, 0, 0);
+    // デバッグログ
+    if (selectedPeriod !== 'all') {
+      console.log(`=== Period Trade Detection (${selectedPeriod}) ===`);
+      console.log('All trades:', getTradeDates);
+      console.log('Period:', startDate.toISOString().split('T')[0], '~', endDate.toISOString().split('T')[0]);
+      console.log('Trades in period:', tradesInPeriod);
+      console.log('Has trades:', hasTradesInPeriod);
+    }
     
-    const isFirstPurchasePeriod = firstSnapshotDate.getTime() !== periodStartDate.getTime() 
-      || (chartData[0].date.split('-')[1] !== '01' || chartData[0].date.split('-')[2] !== '01');
+    // 🔥 修正: 初購入期間の判定
+    // フィルタ前の全データから最初の購入日を取得
+    const allFirstDate = sortedData && sortedData.length > 0 
+      ? new Date(sortedData[0].date) 
+      : new Date(chartData[0].date);
+    allFirstDate.setHours(0, 0, 0, 0);
+    
+    const periodStart = new Date(startDate);
+    periodStart.setHours(0, 0, 0, 0);
+    
+    // 期間開始が全データの開始と同じ、かつ1月1日でない場合 → 初購入期間
+    const isFirstPurchasePeriod = (allFirstDate.getTime() === periodStart.getTime())
+      && (sortedData[0].date.split('-')[1] !== '01' || sortedData[0].date.split('-')[2] !== '01');
 
     // 通常のCAGR計算
     const startValue = initialValue;
@@ -484,7 +505,7 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
       calculatedRealCagr = (Math.pow(endValue / startValue, 1 / years) - 1) * 100;
     }
 
-    // 🔥 修正: 疑似CAGR計算
+    // 疑似CAGR計算
     // 初購入期間で売買が1件のみの場合はスキップ
     const shouldCalculatePseudoCagr = hasTradesInPeriod 
       && !(isFirstPurchasePeriod && tradesInPeriod.length === 1);
@@ -528,7 +549,7 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
         validSegmentCount: pseudoResult.validSegmentCount
       } : null
     };
-  }, [chartData, initialValue, totalValueJPY, getTradeDates]);
+  }, [chartData, initialValue, totalValueJPY, getTradeDates, selectedPeriod, sortedData]);
 
   // 年次パフォーマンスデータを計算
   const yearlyPerformance = useMemo(() => {
