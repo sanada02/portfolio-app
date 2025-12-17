@@ -123,7 +123,6 @@ const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
 
   // 最新の評価額と損益の計算（useMemoを早期リターンの前に）
   const { totalValueJPY, totalValueUSD, change, changePercent, isPositive, initialValue, firstSnapshot, chartData, latestExchangeRate } = useMemo(() => {
-    // データがない場合のデフォルト値
     if (!data || data.length === 0 || viewFilteredData.length === 0) {
       return {
         totalValueJPY: 0,
@@ -134,40 +133,74 @@ const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
         initialValue: 0,
         firstSnapshot: null,
         chartData: [],
-        latestExchangeRate: exchangeRate // propsから取得した値をデフォルトとして使用
+        latestExchangeRate: exchangeRate
       };
     }
 
-    // 現在のリアルタイム評価額を計算
+    // 🔥 修正: viewFilteredDataから現在の評価額を取得
+    const latestFilteredData = viewFilteredData[viewFilteredData.length - 1];
+    
+    // リアルタイム評価額の計算（タブに応じてフィルタリング）
     let calcTotalJPY = 0;
     let calcTotalUSD = 0;
     
     if (portfolio && portfolio.length > 0) {
-      portfolio.forEach(asset => {
-        const currentPrice = asset.currentPrice || asset.purchasePrice;
-        const value = currentPrice * asset.activeQuantity;
-        
-        if (asset.currency === 'USD') {
-          calcTotalUSD += value;
-          calcTotalJPY += value * exchangeRate;
-        } else {
-          calcTotalJPY += value;
-        }
-      });
+      if (activeTab === 'total') {
+        // 全体タブ: 全資産を計算
+        portfolio.forEach(asset => {
+          const currentPrice = asset.currentPrice || asset.purchasePrice;
+          const value = currentPrice * asset.activeQuantity;
+          
+          if (asset.currency === 'USD') {
+            calcTotalUSD += value;
+            calcTotalJPY += value * exchangeRate;
+          } else {
+            calcTotalJPY += value;
+          }
+        });
+      } else if (activeTab === 'byAsset') {
+        // 銘柄別タブ: 選択された銘柄のみ計算
+        const assetsToShow = selectedAssets.length > 0 ? selectedAssets : portfolio.map(a => a.id);
+        portfolio.filter(asset => assetsToShow.includes(asset.id)).forEach(asset => {
+          const currentPrice = asset.currentPrice || asset.purchasePrice;
+          const value = currentPrice * asset.activeQuantity;
+          
+          if (asset.currency === 'USD') {
+            calcTotalUSD += value;
+            calcTotalJPY += value * exchangeRate;
+          } else {
+            calcTotalJPY += value;
+          }
+        });
+      } else if (activeTab === 'byTag') {
+        // タグ別タブ: 選択されたタグを持つ銘柄のみ計算
+        const tagsToShow = selectedTags.length > 0 ? selectedTags : Array.from(new Set(portfolio.flatMap(a => a.tags || [])));
+        portfolio.filter(asset => asset.tags && asset.tags.some(tag => tagsToShow.includes(tag))).forEach(asset => {
+          const currentPrice = asset.currentPrice || asset.purchasePrice;
+          const value = currentPrice * asset.activeQuantity;
+          
+          if (asset.currency === 'USD') {
+            calcTotalUSD += value;
+            calcTotalJPY += value * exchangeRate;
+          } else {
+            calcTotalJPY += value;
+          }
+        });
+      }
     }
 
-    const latestFilteredData = viewFilteredData[viewFilteredData.length - 1];
+    // スナップショットデータと現在のリアルタイムデータを比較
     const finalTotalJPY = (portfolio && portfolio.length > 0) ? calcTotalJPY : (latestFilteredData?.totalValueJPY || 0);
     const finalTotalUSD = (portfolio && portfolio.length > 0) ? calcTotalUSD : (latestFilteredData?.totalValueUSD || 0);
-
-    // 最新の為替レートをスナップショットから取得（なければpropsの値を使用）
-    const snapshotExchangeRate = latestFilteredData?.exchangeRate || exchangeRate;
 
     const firstSnap = viewFilteredData[0];
     const initValue = firstSnap?.totalValueJPY || 0;
     const calcChange = finalTotalJPY - initValue;
     const calcChangePercent = initValue > 0 ? ((calcChange / initValue) * 100).toFixed(2) : 0;
     const calcIsPositive = calcChange >= 0;
+
+    // 最新の為替レートをスナップショットから取得
+    const snapshotExchangeRate = latestFilteredData?.exchangeRate || exchangeRate;
 
     // グラフ用のデータに損益を追加
     const calcChartData = viewFilteredData.map(item => ({
@@ -187,7 +220,7 @@ const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
       chartData: calcChartData,
       latestExchangeRate: snapshotExchangeRate
     };
-  }, [data, viewFilteredData, portfolio, exchangeRate]);
+  }, [data, viewFilteredData, portfolio, exchangeRate, activeTab, selectedAssets, selectedTags]);
 
   // 為替レートのY軸範囲を計算
   const exchangeRateRange = useMemo(() => {
@@ -215,24 +248,30 @@ const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
   }, [chartData, showExchangeRate]);
 
   // CAGRとMDDを計算
-  const { cagr, mdd } = useMemo(() => {
+    const { cagr, mdd } = useMemo(() => {
     if (!chartData || chartData.length < 2 || initialValue === 0) {
       return { cagr: 0, mdd: 0 };
     }
 
-    // CAGR計算
+    // CAGR計算（期間内の年率換算リターン）
     const startValue = initialValue;
     const endValue = totalValueJPY;
     const startDate = new Date(chartData[0].date);
     const endDate = new Date(chartData[chartData.length - 1].date);
-    const years = (endDate - startDate) / (365.25 * 24 * 60 * 60 * 1000);
+    const days = (endDate - startDate) / (24 * 60 * 60 * 1000);
+    const years = days / 365.25;
     
     let calculatedCagr = 0;
-    if (years > 0 && startValue > 0) {
+    if (years > 0 && startValue > 0 && endValue > 0) {
+      // CAGR = (終値/始値)^(1/年数) - 1
       calculatedCagr = (Math.pow(endValue / startValue, 1 / years) - 1) * 100;
+    } else if (years <= 0) {
+      // 1年未満の場合は単純リターンを年率換算
+      const simpleReturn = (endValue - startValue) / startValue;
+      calculatedCagr = simpleReturn * (365.25 / Math.max(days, 1)) * 100;
     }
 
-    // MDD（最大ドローダウン）計算
+    // MDD（最大ドローダウン）計算 - chartDataを使用
     let maxValue = chartData[0].totalValueJPY;
     let maxDrawdown = 0;
     
