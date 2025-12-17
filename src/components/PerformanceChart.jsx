@@ -468,7 +468,9 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
       });
     }
 
-  if (validSegmentCount === 0) {
+  // 🔥 修正: 計算区間が0または1の場合はnullを返す
+  // 1区間の場合、疑似CAGRは通常CAGRと同じなので計算不要
+  if (validSegmentCount <= 1) {
     return null;
   }
 
