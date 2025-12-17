@@ -533,6 +533,7 @@ export const regenerateDailySnapshots = async (portfolio) => {
     let totalValueJPY = 0;
     let totalValueUSD = 0;
     const breakdown = {};
+    const assetBreakdown = {};
     let hasData = false;
     
     for (const asset of assetsOnDate) {
@@ -593,11 +594,36 @@ export const regenerateDailySnapshots = async (portfolio) => {
       }
       
       breakdown[asset.type] = (breakdown[asset.type] || 0) + value;
+  
+
+          // 銘柄別データの保存
+      const assetKey = asset.symbol || asset.isinCd || asset.id;
+      if (!assetBreakdown[assetKey]) {
+        assetBreakdown[assetKey] = {
+          id: asset.id,
+          name: asset.name,
+          symbol: asset.symbol,
+          type: asset.type,
+          tags: asset.tags || [],
+          quantity: activeQuantity,
+          price: price,
+          currency: asset.currency,
+          valueJPY: value,
+          valueUSD: asset.currency === 'USD' ? price * activeQuantity : 0
+        };
+      } else {
+        // 同じ銘柄が複数の購入記録で存在する場合は合算
+        assetBreakdown[assetKey].quantity += activeQuantity;
+        assetBreakdown[assetKey].valueJPY += value;
+        assetBreakdown[assetKey].valueUSD += asset.currency === 'USD' ? price * activeQuantity : 0;
+      }
+
     }
+
     
     // データがある場合のみスナップショットを保存
     if (hasData) {
-      await saveDailySnapshot(dateStr, totalValueJPY, totalValueUSD, breakdown, exchangeRate);
+      await saveDailySnapshot(dateStr, totalValueJPY, totalValueUSD, breakdown, exchangeRate, assetBreakdown);
       snapshotCount++;
       
       if (snapshotCount % 10 === 0) {

@@ -3,10 +3,13 @@ import React, { useState, useMemo } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts';
 
 const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
-  const [selectedPeriod, setSelectedPeriod] = useState('30d'); // デフォルトは30日
-  const [showExchangeRate, setShowExchangeRate] = useState(false); // 為替レート表示
-  const [showProfit, setShowProfit] = useState(false); // 損益表示
-  const [showPortfolioValue, setShowPortfolioValue] = useState(true); // ポートフォリオ評価額表示
+  const [selectedPeriod, setSelectedPeriod] = useState('30d');
+  const [showExchangeRate, setShowExchangeRate] = useState(false);
+  const [showProfit, setShowProfit] = useState(false);
+  const [showPortfolioValue, setShowPortfolioValue] = useState(true);
+  const [activeTab, setActiveTab] = useState('total');  // ← この行が必要
+  const [selectedAssets, setSelectedAssets] = useState([]);  // ← この行が必要
+  const [selectedTags, setSelectedTags] = useState([]);  // ← この行が必要
 
   // データを日付でソートし、期間に応じてフィルタリング
   const { sortedData, filteredData } = useMemo(() => {
@@ -54,10 +57,74 @@ const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
     return { sortedData: sorted, filteredData: filtered };
   }, [data, selectedPeriod]);
 
+  // 銘柄別・タグ別でフィルタリングされたデータを計算
+  const viewFilteredData = useMemo(() => {
+    if (activeTab === 'total') {
+      return filteredData;
+    }
+    
+    if (!filteredData || filteredData.length === 0) {
+      return [];
+    }
+    
+    // 銘柄別・タグ別の場合は、各スナップショットに銘柄ごとのデータを追加
+    return filteredData.map(snapshot => {
+      if (!snapshot.assetBreakdown) {
+        return snapshot;
+      }
+      
+      let totalValueJPY = 0;
+      let totalValueUSD = 0;
+      const breakdown = {};
+      const assetValues = {}; // 各銘柄の評価額
+      const tagValues = {}; // 各タグの評価額
+      
+      Object.values(snapshot.assetBreakdown).forEach(asset => {
+        let shouldInclude = false;
+        
+        if (activeTab === 'byAsset') {
+          shouldInclude = selectedAssets.length === 0 || selectedAssets.includes(asset.id);
+        } else if (activeTab === 'byTag') {
+          shouldInclude = selectedTags.length === 0 || 
+            (asset.tags && asset.tags.some(tag => selectedTags.includes(tag)));
+        }
+        
+        if (shouldInclude) {
+          totalValueJPY += asset.valueJPY;
+          totalValueUSD += asset.valueUSD;
+          breakdown[asset.type] = (breakdown[asset.type] || 0) + asset.valueJPY;
+          
+          // 銘柄別の評価額を記録
+          if (activeTab === 'byAsset') {
+            assetValues[asset.id] = asset.valueJPY;
+          }
+          
+          // タグ別の評価額を記録
+          if (activeTab === 'byTag' && asset.tags) {
+            asset.tags.forEach(tag => {
+              if (selectedTags.length === 0 || selectedTags.includes(tag)) {
+                tagValues[tag] = (tagValues[tag] || 0) + asset.valueJPY;
+              }
+            });
+          }
+        }
+      });
+      
+      return {
+        ...snapshot,
+        totalValueJPY,
+        totalValueUSD,
+        breakdown,
+        assetValues, // 銘柄ごとの評価額
+        tagValues // タグごとの評価額
+      };
+    });
+  }, [filteredData, activeTab, selectedAssets, selectedTags]);
+
   // 最新の評価額と損益の計算（useMemoを早期リターンの前に）
   const { totalValueJPY, totalValueUSD, change, changePercent, isPositive, initialValue, firstSnapshot, chartData, latestExchangeRate } = useMemo(() => {
     // データがない場合のデフォルト値
-    if (!data || data.length === 0 || filteredData.length === 0) {
+    if (!data || data.length === 0 || viewFilteredData.length === 0) {
       return {
         totalValueJPY: 0,
         totalValueUSD: 0,
@@ -89,21 +156,21 @@ const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
       });
     }
 
-    const latestFilteredData = filteredData[filteredData.length - 1];
+    const latestFilteredData = viewFilteredData[viewFilteredData.length - 1];
     const finalTotalJPY = (portfolio && portfolio.length > 0) ? calcTotalJPY : (latestFilteredData?.totalValueJPY || 0);
     const finalTotalUSD = (portfolio && portfolio.length > 0) ? calcTotalUSD : (latestFilteredData?.totalValueUSD || 0);
 
     // 最新の為替レートをスナップショットから取得（なければpropsの値を使用）
     const snapshotExchangeRate = latestFilteredData?.exchangeRate || exchangeRate;
 
-    const firstSnap = filteredData[0];
+    const firstSnap = viewFilteredData[0];
     const initValue = firstSnap?.totalValueJPY || 0;
     const calcChange = finalTotalJPY - initValue;
     const calcChangePercent = initValue > 0 ? ((calcChange / initValue) * 100).toFixed(2) : 0;
     const calcIsPositive = calcChange >= 0;
 
     // グラフ用のデータに損益を追加
-    const calcChartData = filteredData.map(item => ({
+    const calcChartData = viewFilteredData.map(item => ({
       ...item,
       profit: item.totalValueJPY - initValue,
       exchangeRate: item.exchangeRate || null
@@ -120,7 +187,7 @@ const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
       chartData: calcChartData,
       latestExchangeRate: snapshotExchangeRate
     };
-  }, [data, filteredData, portfolio, exchangeRate]);
+  }, [data, viewFilteredData, portfolio, exchangeRate]);
 
   // 為替レートのY軸範囲を計算
   const exchangeRateRange = useMemo(() => {
@@ -255,26 +322,64 @@ const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
           padding: '15px',
           border: '1px solid #ccc',
           borderRadius: '8px',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
+          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+          maxHeight: '400px',
+          overflowY: 'auto'
         }}>
           <p style={{ fontWeight: 'bold', marginBottom: '8px', color: '#333' }}>
             {new Date(data.date).toLocaleDateString('ja-JP')}
           </p>
-          <p style={{ color: '#667eea', marginBottom: '4px' }}>
-            評価額: ¥{Math.round(data.totalValueJPY).toLocaleString()}
-          </p>
-          {data.totalValueUSD > 0 && (
-            <p style={{ color: '#764ba2', fontSize: '13px', marginBottom: '4px' }}>
-              USD: ${Math.round(data.totalValueUSD).toLocaleString()}
-            </p>
+          
+          {activeTab === 'total' && (
+            <>
+              <p style={{ color: '#667eea', marginBottom: '4px' }}>
+                評価額: ¥{Math.round(data.totalValueJPY).toLocaleString()}
+              </p>
+              {data.totalValueUSD > 0 && (
+                <p style={{ color: '#764ba2', fontSize: '13px', marginBottom: '4px' }}>
+                  USD: ${Math.round(data.totalValueUSD).toLocaleString()}
+                </p>
+              )}
+            </>
           )}
+          
+          {activeTab === 'byAsset' && data.assetValues && (
+            <>
+              <p style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '6px', color: '#666' }}>
+                銘柄別評価額:
+              </p>
+              {Object.entries(data.assetValues).map(([assetId, value]) => {
+                const asset = portfolio.find(a => a.id === assetId);
+                return asset ? (
+                  <p key={assetId} style={{ fontSize: '13px', marginBottom: '3px' }}>
+                    {asset.name}: ¥{Math.round(value).toLocaleString()}
+                  </p>
+                ) : null;
+              })}
+            </>
+          )}
+          
+          {activeTab === 'byTag' && data.tagValues && (
+            <>
+              <p style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '6px', color: '#666' }}>
+                タグ別評価額:
+              </p>
+              {Object.entries(data.tagValues).map(([tag, value]) => (
+                <p key={tag} style={{ fontSize: '13px', marginBottom: '3px' }}>
+                  {tag}: ¥{Math.round(value).toLocaleString()}
+                </p>
+              ))}
+            </>
+          )}
+          
           {showProfit && data.profit !== undefined && (
-            <p style={{ color: data.profit >= 0 ? '#10b981' : '#ef4444', fontSize: '13px', marginBottom: '4px' }}>
+            <p style={{ color: data.profit >= 0 ? '#10b981' : '#ef4444', fontSize: '13px', marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #eee' }}>
               損益: {data.profit >= 0 ? '+' : ''}¥{Math.round(data.profit).toLocaleString()}
             </p>
           )}
+          
           {showExchangeRate && data.exchangeRate && (
-            <p style={{ color: '#f59e0b', fontSize: '13px' }}>
+            <p style={{ color: '#f59e0b', fontSize: '13px', marginTop: '4px' }}>
               為替: ¥{data.exchangeRate.toFixed(2)}/USD
             </p>
           )}
@@ -300,6 +405,63 @@ const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
 
   return (
     <div>
+            {/* タブ選択 */}
+      <div style={{
+        display: 'flex',
+        gap: '10px',
+        marginBottom: '20px',
+        borderBottom: '2px solid #e5e7eb'
+      }}>
+        <button
+          style={{
+            padding: '12px 24px',
+            border: 'none',
+            background: 'none',
+            borderBottom: activeTab === 'total' ? '3px solid #667eea' : 'none',
+            color: activeTab === 'total' ? '#667eea' : '#6b7280',
+            fontWeight: activeTab === 'total' ? 'bold' : 'normal',
+            cursor: 'pointer',
+            fontSize: '15px',
+            transition: 'all 0.2s'
+          }}
+          onClick={() => setActiveTab('total')}
+        >
+          全体
+        </button>
+        <button
+          style={{
+            padding: '12px 24px',
+            border: 'none',
+            background: 'none',
+            borderBottom: activeTab === 'byAsset' ? '3px solid #667eea' : 'none',
+            color: activeTab === 'byAsset' ? '#667eea' : '#6b7280',
+            fontWeight: activeTab === 'byAsset' ? 'bold' : 'normal',
+            cursor: 'pointer',
+            fontSize: '15px',
+            transition: 'all 0.2s'
+          }}
+          onClick={() => setActiveTab('byAsset')}
+        >
+          銘柄別
+        </button>
+        <button
+          style={{
+            padding: '12px 24px',
+            border: 'none',
+            background: 'none',
+            borderBottom: activeTab === 'byTag' ? '3px solid #667eea' : 'none',
+            color: activeTab === 'byTag' ? '#667eea' : '#6b7280',
+            fontWeight: activeTab === 'byTag' ? 'bold' : 'normal',
+            cursor: 'pointer',
+            fontSize: '15px',
+            transition: 'all 0.2s'
+          }}
+          onClick={() => setActiveTab('byTag')}
+        >
+          タグ別
+        </button>
+      </div>
+
       {/* 期間選択ボタン */}
       <div style={{
         display: 'flex',
@@ -460,6 +622,105 @@ const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
         </label>
       </div>
 
+      {/* 銘柄選択（銘柄別タブの場合のみ表示） */}
+      {activeTab === 'byAsset' && portfolio && portfolio.length > 0 && (
+        <div style={{
+          marginBottom: '20px',
+          padding: '15px',
+          background: '#f8f9fa',
+          borderRadius: '8px'
+        }}>
+          <div style={{ fontWeight: '600', marginBottom: '10px', color: '#333' }}>
+            表示する銘柄を選択: {selectedAssets.length > 0 && `(${selectedAssets.length}銘柄選択中)`}
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+            {portfolio.map(asset => (
+              <label
+                key={asset.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px 12px',
+                  background: selectedAssets.includes(asset.id) ? '#dbeafe' : 'white',
+                  border: `2px solid ${selectedAssets.includes(asset.id) ? '#3b82f6' : '#e5e7eb'}`,
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                  fontWeight: selectedAssets.includes(asset.id) ? '600' : '400',
+                  transition: 'all 0.2s'
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedAssets.includes(asset.id)}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setSelectedAssets([...selectedAssets, asset.id]);
+                    } else {
+                      setSelectedAssets(selectedAssets.filter(id => id !== asset.id));
+                    }
+                  }}
+                  style={{ cursor: 'pointer' }}
+                />
+                {asset.name}
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* タグ選択（タグ別タブの場合のみ表示） */}
+      {activeTab === 'byTag' && portfolio && portfolio.length > 0 && (() => {
+        const allTags = Array.from(new Set(portfolio.flatMap(a => a.tags || [])));
+        return allTags.length > 0 ? (
+          <div style={{
+            marginBottom: '20px',
+            padding: '15px',
+            background: '#f8f9fa',
+            borderRadius: '8px'
+          }}>
+            <div style={{ fontWeight: '600', marginBottom: '10px', color: '#333' }}>
+              表示するタグを選択: {selectedTags.length > 0 && `(${selectedTags.length}タグ選択中)`}
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+              {allTags.map(tag => (
+                <label
+                  key={tag}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '8px 12px',
+                    background: selectedTags.includes(tag) ? '#dcfce7' : 'white',
+                    border: `2px solid ${selectedTags.includes(tag) ? '#10b981' : '#e5e7eb'}`,
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                    fontWeight: selectedTags.includes(tag) ? '600' : '400',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedTags.includes(tag)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedTags([...selectedTags, tag]);
+                      } else {
+                        setSelectedTags(selectedTags.filter(t => t !== tag));
+                      }
+                    }}
+                    style={{ cursor: 'pointer' }}
+                  />
+                  {tag}
+                </label>
+              ))}
+            </div>
+          </div>
+        ) : null;
+      })()}
+
       {/* サマリー */}
       <div style={{
         display: 'grid',
@@ -599,7 +860,8 @@ const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
               label={{ value: '±0円', position: 'right', fill: '#64748b', fontSize: 12 }}
             />
           )}
-          {showPortfolioValue && (
+          {/* 全体タブの場合 */}
+          {activeTab === 'total' && showPortfolioValue && (
             <Line
               yAxisId="left"
               type="linear"
@@ -611,7 +873,60 @@ const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
               name="ポートフォリオ評価額"
             />
           )}
-          {showProfit && (
+          
+          {/* 銘柄別タブの場合 */}
+          {activeTab === 'byAsset' && showPortfolioValue && (
+            <>
+              {(selectedAssets.length > 0 ? selectedAssets : portfolio.map(a => a.id)).map((assetId, index) => {
+                const asset = portfolio.find(a => a.id === assetId);
+                if (!asset) return null;
+                
+                // 色を動的に生成
+                const colors = ['#667eea', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
+                const color = colors[index % colors.length];
+                
+                return (
+                  <Line
+                    key={assetId}
+                    yAxisId="left"
+                    type="linear"
+                    dataKey={`assetValues.${assetId}`}
+                    stroke={color}
+                    strokeWidth={2}
+                    dot={false}
+                    activeDot={{ r: 6 }}
+                    name={asset.name}
+                  />
+                );
+              })}
+            </>
+          )}
+          
+          {/* タグ別タブの場合 */}
+          {activeTab === 'byTag' && showPortfolioValue && (
+            <>
+              {(() => {
+                const allTags = Array.from(new Set(portfolio.flatMap(a => a.tags || [])));
+                const tagsToShow = selectedTags.length > 0 ? selectedTags : allTags;
+                const colors = ['#667eea', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
+                
+                return tagsToShow.map((tag, index) => (
+                  <Line
+                    key={tag}
+                    yAxisId="left"
+                    type="linear"
+                    dataKey={`tagValues.${tag}`}
+                    stroke={colors[index % colors.length]}
+                    strokeWidth={2}
+                    dot={false}
+                    activeDot={{ r: 6 }}
+                    name={tag}
+                  />
+                ));
+              })()}
+            </>
+          )}
+          {activeTab === 'total' && showProfit && (
             <Line
               yAxisId="left"
               type="linear"
