@@ -317,6 +317,7 @@ function App() {
           <PortfolioSummaryAndTable
             portfolio={activePortfolio}
             exchangeRate={exchangeRate}
+            snapshotData={snapshotData}
             onEdit={openEditModal}
             onDelete={handleDeleteAsset}
             onSell={openSellModal}

@@ -1,7 +1,7 @@
-// src/components/PortfolioTable.jsx (ソート機能付き)
+// src/components/PortfolioTable.jsx (前日比追加版)
 import React, { useState, useMemo } from 'react';
 
-const PortfolioTable = ({ portfolio, exchangeRate, onEdit, onDelete, onSell, onDetail }) => {
+const PortfolioTable = ({ portfolio, exchangeRate, previousDayComparison, onEdit, onDelete, onSell, onDetail }) => {
   const [sortConfig, setSortConfig] = useState({ key: 'currentValueJPY', direction: 'desc' });
 
   const formatCurrency = (value, currency) => {
@@ -54,10 +54,6 @@ const PortfolioTable = ({ portfolio, exchangeRate, onEdit, onDelete, onSell, onD
             aValue = a.activeQuantity;
             bValue = b.activeQuantity;
             break;
-          case 'purchasePrice':
-            aValue = a.purchasePrice * (a.currency === 'USD' ? exchangeRate : 1);
-            bValue = b.purchasePrice * (b.currency === 'USD' ? exchangeRate : 1);
-            break;
           case 'currentPrice':
             aValue = (a.currentPrice || a.purchasePrice) * (a.currency === 'USD' ? exchangeRate : 1);
             bValue = (b.currentPrice || b.purchasePrice) * (b.currency === 'USD' ? exchangeRate : 1);
@@ -82,6 +78,26 @@ const PortfolioTable = ({ portfolio, exchangeRate, onEdit, onDelete, onSell, onD
             aValue = aInvestment > 0 ? (aProfit / aInvestment) * 100 : 0;
             bValue = bInvestment > 0 ? (bProfit / bInvestment) * 100 : 0;
             break;
+          case 'dayChange':
+            // 前日比でソート
+            if (previousDayComparison && previousDayComparison.assetChanges) {
+              aValue = previousDayComparison.assetChanges[a.id]?.change || 0;
+              bValue = previousDayComparison.assetChanges[b.id]?.change || 0;
+            } else {
+              aValue = 0;
+              bValue = 0;
+            }
+            break;
+          case 'dayChangePercent':
+            // 前日比%でソート
+            if (previousDayComparison && previousDayComparison.assetChanges) {
+              aValue = previousDayComparison.assetChanges[a.id]?.changePercent || 0;
+              bValue = previousDayComparison.assetChanges[b.id]?.changePercent || 0;
+            } else {
+              aValue = 0;
+              bValue = 0;
+            }
+            break;
           default:
             aValue = 0;
             bValue = 0;
@@ -98,7 +114,7 @@ const PortfolioTable = ({ portfolio, exchangeRate, onEdit, onDelete, onSell, onD
     }
     
     return sortableItems;
-  }, [portfolio, sortConfig, exchangeRate]);
+  }, [portfolio, sortConfig, exchangeRate, previousDayComparison]);
 
   // ソート変更ハンドラー
   const requestSort = (key) => {
@@ -156,9 +172,6 @@ const PortfolioTable = ({ portfolio, exchangeRate, onEdit, onDelete, onSell, onD
             <th onClick={() => requestSort('quantity')} style={{ textAlign: 'right', cursor: 'pointer', userSelect: 'none' }}>
               数量{getSortIndicator('quantity')}
             </th>
-            <th onClick={() => requestSort('purchasePrice')} style={{ textAlign: 'right', cursor: 'pointer', userSelect: 'none' }}>
-              取得単価{getSortIndicator('purchasePrice')}
-            </th>
             <th onClick={() => requestSort('currentPrice')} style={{ textAlign: 'right', cursor: 'pointer', userSelect: 'none' }}>
               現在単価{getSortIndicator('currentPrice')}
             </th>
@@ -170,6 +183,9 @@ const PortfolioTable = ({ portfolio, exchangeRate, onEdit, onDelete, onSell, onD
             </th>
             <th onClick={() => requestSort('profitPercent')} style={{ textAlign: 'right', cursor: 'pointer', userSelect: 'none' }}>
               損益率{getSortIndicator('profitPercent')}
+            </th>
+            <th onClick={() => requestSort('dayChange')} style={{ textAlign: 'right', cursor: 'pointer', userSelect: 'none' }}>
+              前日比{getSortIndicator('dayChange')}
             </th>
             <th style={{ textAlign: 'center' }}>操作</th>
           </tr>
@@ -184,6 +200,11 @@ const PortfolioTable = ({ portfolio, exchangeRate, onEdit, onDelete, onSell, onD
 
             // 円換算の評価額
             const currentValueJPY = asset.currency === 'USD' ? currentValue * exchangeRate : currentValue;
+
+            // 前日比を取得
+            const dayChangeData = previousDayComparison?.assetChanges?.[asset.id];
+            const dayChange = dayChangeData?.change || 0;
+            const dayChangePercent = dayChangeData?.changePercent || 0;
 
             return (
               <tr key={asset.id}>
@@ -226,7 +247,6 @@ const PortfolioTable = ({ portfolio, exchangeRate, onEdit, onDelete, onSell, onD
                   </span>
                 </td>
                 <td style={{ textAlign: 'right' }}>{formatNumber(asset.activeQuantity)}</td>
-                <td style={{ textAlign: 'right' }}>{formatCurrency(asset.purchasePrice, asset.currency)}</td>
                 <td style={{ textAlign: 'right', fontWeight: '500' }}>
                   {formatCurrency(currentPrice, asset.currency)}
                 </td>
@@ -238,6 +258,20 @@ const PortfolioTable = ({ portfolio, exchangeRate, onEdit, onDelete, onSell, onD
                 </td>
                 <td style={{ textAlign: 'right' }} className={getProfitPercentClass(profitPercent)}>
                   {profitPercent >= 0 ? '+' : ''}{profitPercent.toFixed(2)}%
+                </td>
+                <td style={{ textAlign: 'right' }}>
+                  {previousDayComparison ? (
+                    <div>
+                      <div className={getProfitClass(dayChange)} style={{ fontWeight: '600' }}>
+                        {dayChange >= 0 ? '+' : ''}¥{Math.round(dayChange).toLocaleString()}
+                      </div>
+                      <div className={getProfitPercentClass(dayChangePercent)} style={{ fontSize: '11px', marginTop: '2px' }}>
+                        ({dayChangePercent >= 0 ? '+' : ''}{dayChangePercent.toFixed(2)}%)
+                      </div>
+                    </div>
+                  ) : (
+                    <span style={{ color: '#999', fontSize: '12px' }}>-</span>
+                  )}
                 </td>
                 <td>
                   <div className="action-buttons">
