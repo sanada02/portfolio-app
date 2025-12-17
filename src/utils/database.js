@@ -4,18 +4,26 @@ import Dexie from 'dexie';
 // IndexedDB の初期化
 const db = new Dexie('PortfolioDB');
 
-// バージョンを2に変更（スキーマ変更のため）
-db.version(2).stores({
+// バージョンを3に変更（スキーマ変更: dailySnapshotsに為替レート追加）
+db.version(3).stores({
   // 価格履歴（日次）
   priceHistory: '[symbol+date], symbol, date, price, currency',
   
-  // ポートフォリオスナップショット（日次）
-  dailySnapshots: 'date, totalValueJPY, totalValueUSD, breakdown',
+  // ポートフォリオスナップショット（日次）- 為替レート追加
+  dailySnapshots: 'date, totalValueJPY, totalValueUSD, breakdown, exchangeRate',
   
   // 為替レート履歴
   exchangeRates: 'date, rate',
   
   // APIキャッシュ（5分間有効）
+  apiCache: 'key, data, timestamp'
+});
+
+// 旧バージョンとの互換性のため、バージョン2も定義
+db.version(2).stores({
+  priceHistory: '[symbol+date], symbol, date, price, currency',
+  dailySnapshots: 'date, totalValueJPY, totalValueUSD, breakdown',
+  exchangeRates: 'date, rate',
   apiCache: 'key, data, timestamp'
 });
 
@@ -52,8 +60,8 @@ export const getPriceByDate = async (symbol, date) => {
 // 日次スナップショット
 // ===========================
 
-export const saveDailySnapshot = async (date, totalValueJPY, totalValueUSD, breakdown) => {
-  await db.dailySnapshots.put({ date, totalValueJPY, totalValueUSD, breakdown });
+export const saveDailySnapshot = async (date, totalValueJPY, totalValueUSD, breakdown, exchangeRate = null) => {
+  await db.dailySnapshots.put({ date, totalValueJPY, totalValueUSD, breakdown, exchangeRate });
 };
 
 // 🔥 修正: daysにnullを渡すと全データを取得できるようにする

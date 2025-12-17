@@ -597,7 +597,7 @@ export const regenerateDailySnapshots = async (portfolio) => {
     
     // データがある場合のみスナップショットを保存
     if (hasData) {
-      await saveDailySnapshot(dateStr, totalValueJPY, totalValueUSD, breakdown);
+      await saveDailySnapshot(dateStr, totalValueJPY, totalValueUSD, breakdown, exchangeRate);
       snapshotCount++;
       
       if (snapshotCount % 10 === 0) {

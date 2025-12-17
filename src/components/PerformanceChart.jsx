@@ -1,18 +1,11 @@
 // src/components/PerformanceChart.jsx (期間選択機能追加版)
-import React, { useState, useMemo, useEffect } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import React, { useState, useMemo } from 'react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts';
 
 const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
   const [selectedPeriod, setSelectedPeriod] = useState('30d'); // デフォルトは30日
-
-  // 状態変化を追跡
-  useEffect(() => {
-    console.log('selectedPeriod changed to:', selectedPeriod);
-  }, [selectedPeriod]);
-
-  useEffect(() => {
-    console.log('Component mounted, initial selectedPeriod:', selectedPeriod);
-  }, []);
+  const [showExchangeRate, setShowExchangeRate] = useState(false); // 為替レート表示
+  const [showProfit, setShowProfit] = useState(false); // 損益表示
 
   // データを日付でソートし、期間に応じてフィルタリング
   const { sortedData, filteredData } = useMemo(() => {
@@ -27,8 +20,6 @@ const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
 
     // 全期間の場合は早期リターン
     if (selectedPeriod === 'all') {
-      console.log('Period: all');
-      console.log('Total data points:', sorted.length);
       return { sortedData: sorted, filteredData: sorted };
     }
 
@@ -56,39 +47,76 @@ const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
     const filtered = sorted.filter(item => {
       const itemDate = new Date(item.date);
       itemDate.setHours(0, 0, 0, 0);
-      const isIncluded = itemDate >= startDate;
-      return isIncluded;
+      return itemDate >= startDate;
     });
-    
-    console.log('=== Period Selection Debug ===');
-    console.log('Period:', selectedPeriod);
-    console.log('Start Date:', startDate.toISOString());
-    console.log('Now:', now.toISOString());
-    console.log('Total data points:', sorted.length);
-    console.log('Filtered data points:', filtered.length);
-    if (sorted.length > 0) {
-      console.log('First data date:', sorted[0].date);
-      console.log('Last data date:', sorted[sorted.length - 1].date);
-    }
-    if (filtered.length > 0) {
-      console.log('First filtered date:', filtered[0].date);
-      console.log('Last filtered date:', filtered[filtered.length - 1].date);
-    }
-    // どのデータが除外されたかを表示
-    const excluded = sorted.filter(item => {
-      const itemDate = new Date(item.date);
-      itemDate.setHours(0, 0, 0, 0);
-      return itemDate < startDate;
-    });
-    console.log('Excluded data points:', excluded.length);
-    if (excluded.length > 0) {
-      console.log('Excluded dates:', excluded.map(item => item.date));
-    }
-    console.log('==============================');
     
     return { sortedData: sorted, filteredData: filtered };
   }, [data, selectedPeriod]);
 
+  // 最新の評価額と損益の計算（useMemoを早期リターンの前に）
+  const { totalValueJPY, totalValueUSD, change, changePercent, isPositive, initialValue, firstSnapshot, chartData } = useMemo(() => {
+    // データがない場合のデフォルト値
+    if (!data || data.length === 0 || filteredData.length === 0) {
+      return {
+        totalValueJPY: 0,
+        totalValueUSD: 0,
+        change: 0,
+        changePercent: 0,
+        isPositive: false,
+        initialValue: 0,
+        firstSnapshot: null,
+        chartData: []
+      };
+    }
+
+    // 現在のリアルタイム評価額を計算
+    let calcTotalJPY = 0;
+    let calcTotalUSD = 0;
+    
+    if (portfolio && portfolio.length > 0) {
+      portfolio.forEach(asset => {
+        const currentPrice = asset.currentPrice || asset.purchasePrice;
+        const value = currentPrice * asset.activeQuantity;
+        
+        if (asset.currency === 'USD') {
+          calcTotalUSD += value;
+          calcTotalJPY += value * exchangeRate;
+        } else {
+          calcTotalJPY += value;
+        }
+      });
+    }
+
+    const latestFilteredData = filteredData[filteredData.length - 1];
+    const finalTotalJPY = (portfolio && portfolio.length > 0) ? calcTotalJPY : (latestFilteredData?.totalValueJPY || 0);
+    const finalTotalUSD = (portfolio && portfolio.length > 0) ? calcTotalUSD : (latestFilteredData?.totalValueUSD || 0);
+
+    const firstSnap = filteredData[0];
+    const initValue = firstSnap?.totalValueJPY || 0;
+    const calcChange = finalTotalJPY - initValue;
+    const calcChangePercent = initValue > 0 ? ((calcChange / initValue) * 100).toFixed(2) : 0;
+    const calcIsPositive = calcChange >= 0;
+
+    // グラフ用のデータに損益を追加
+    const calcChartData = filteredData.map(item => ({
+      ...item,
+      profit: item.totalValueJPY - initValue,
+      exchangeRate: item.exchangeRate || null
+    }));
+
+    return {
+      totalValueJPY: finalTotalJPY,
+      totalValueUSD: finalTotalUSD,
+      change: calcChange,
+      changePercent: calcChangePercent,
+      isPositive: calcIsPositive,
+      initialValue: initValue,
+      firstSnapshot: firstSnap,
+      chartData: calcChartData
+    };
+  }, [data, filteredData, portfolio, exchangeRate]);
+
+  // 早期リターン（すべてのフックの後に）
   if (!data || data.length === 0) {
     return (
       <div style={{ textAlign: 'center', padding: '60px 20px', color: '#6c757d' }}>
@@ -98,56 +126,26 @@ const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
     );
   }
 
-  // 🔥 現在のリアルタイム評価額を計算
-  const calculateCurrentValue = () => {
-    let totalJPY = 0;
-    let totalUSD = 0;
-    
-    portfolio.forEach(asset => {
-      const currentPrice = asset.currentPrice || asset.purchasePrice;
-      const value = currentPrice * asset.activeQuantity;
-      
-      if (asset.currency === 'USD') {
-        totalUSD += value;
-        totalJPY += value * exchangeRate;
-      } else {
-        totalJPY += value;
-      }
-    });
-    
-    return { totalJPY, totalUSD };
-  };
-
-  const currentValue = portfolio && portfolio.length > 0 ? calculateCurrentValue() : null;
-
   // 日付フォーマット
   const formatDate = (dateStr) => {
     const date = new Date(dateStr);
     return `${date.getMonth() + 1}/${date.getDate()}`;
   };
 
-  // 通貨フォーマット
+  // 通貨フォーマット（日本語表記）
   const formatCurrency = (value) => {
-    if (value >= 1000000) {
-      return `¥${(value / 1000000).toFixed(1)}M`;
+    const absValue = Math.abs(value);
+    if (absValue >= 100000000) { // 1億以上
+      return `${(value / 100000000).toFixed(1)}億円`;
+    } else if (absValue >= 10000) { // 1万以上
+      return `${(value / 10000).toFixed(0)}万円`;
     }
-    return `¥${(value / 1000).toFixed(0)}K`;
+    return `¥${Math.round(value).toLocaleString()}`;
   };
-
-  // 最新の評価額（リアルタイムがあればそれを、なければフィルタリングされたデータの最新）
-  const latestFilteredData = filteredData[filteredData.length - 1];
-  const totalValueJPY = currentValue ? currentValue.totalJPY : (latestFilteredData?.totalValueJPY || 0);
-  const totalValueUSD = currentValue ? currentValue.totalUSD : (latestFilteredData?.totalValueUSD || 0);
-
-  // 開始時との比較（フィルタリングされたデータの最初と比較）
-  const firstSnapshot = filteredData[0];
-  const initialValue = firstSnapshot?.totalValueJPY || 0;
-  const change = totalValueJPY - initialValue;
-  const changePercent = initialValue > 0 ? ((change / initialValue) * 100).toFixed(2) : 0;
-  const isPositive = change >= 0;
 
   const CustomTooltip = ({ active, payload }) => {
     if (active && payload && payload.length) {
+      const data = payload[0].payload;
       return (
         <div style={{
           background: 'white',
@@ -157,14 +155,24 @@ const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
           boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
         }}>
           <p style={{ fontWeight: 'bold', marginBottom: '8px', color: '#333' }}>
-            {new Date(payload[0].payload.date).toLocaleDateString('ja-JP')}
+            {new Date(data.date).toLocaleDateString('ja-JP')}
           </p>
           <p style={{ color: '#667eea', marginBottom: '4px' }}>
-            評価額: ¥{Math.round(payload[0].value).toLocaleString()}
+            評価額: ¥{Math.round(data.totalValueJPY).toLocaleString()}
           </p>
-          {payload[0].payload.totalValueUSD > 0 && (
-            <p style={{ color: '#764ba2', fontSize: '13px' }}>
-              USD: ${Math.round(payload[0].payload.totalValueUSD).toLocaleString()}
+          {data.totalValueUSD > 0 && (
+            <p style={{ color: '#764ba2', fontSize: '13px', marginBottom: '4px' }}>
+              USD: ${Math.round(data.totalValueUSD).toLocaleString()}
+            </p>
+          )}
+          {showProfit && data.profit !== undefined && (
+            <p style={{ color: data.profit >= 0 ? '#10b981' : '#ef4444', fontSize: '13px', marginBottom: '4px' }}>
+              損益: {data.profit >= 0 ? '+' : ''}¥{Math.round(data.profit).toLocaleString()}
+            </p>
+          )}
+          {showExchangeRate && data.exchangeRate && (
+            <p style={{ color: '#f59e0b', fontSize: '13px' }}>
+              為替: ¥{data.exchangeRate.toFixed(2)}/USD
             </p>
           )}
         </div>
@@ -189,34 +197,6 @@ const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
 
   return (
     <div>
-      {/* デバッグ情報 */}
-      <div style={{
-        background: '#fff3cd',
-        border: '1px solid #ffc107',
-        padding: '15px',
-        borderRadius: '8px',
-        marginBottom: '20px',
-        fontSize: '13px'
-      }}>
-        <strong>🐛 デバッグ情報:</strong><br/>
-        選択期間: {selectedPeriod} | 
-        全データ数: {sortedData.length} | 
-        フィルター後: {filteredData.length} | 
-        グラフに渡されたデータ数: {filteredData.length}
-        {filteredData.length > 0 && (
-          <>
-            <br/>
-            最初の日付: {filteredData[0].date} | 
-            最後の日付: {filteredData[filteredData.length - 1].date}
-          </>
-        )}
-        {sortedData.length === filteredData.length && selectedPeriod !== 'all' && (
-          <div style={{ marginTop: '10px', color: '#856404' }}>
-            ⚠️ 注意: 全データが選択期間内に収まっています。より長期間のデータがあれば、期間による違いが表示されます。
-          </div>
-        )}
-      </div>
-
       {/* 期間選択ボタン */}
       <div style={{
         display: 'flex',
@@ -227,9 +207,7 @@ const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
         <button
           style={getPeriodButtonStyle('30d')}
           onClick={() => {
-            console.log('Button clicked: 30d');
             setSelectedPeriod('30d');
-            console.log('State should be updated to: 30d');
           }}
           onMouseEnter={(e) => {
             if (selectedPeriod !== '30d') {
@@ -247,9 +225,7 @@ const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
         <button
           style={getPeriodButtonStyle('1y')}
           onClick={() => {
-            console.log('Button clicked: 1y');
             setSelectedPeriod('1y');
-            console.log('State should be updated to: 1y');
           }}
           onMouseEnter={(e) => {
             if (selectedPeriod !== '1y') {
@@ -267,9 +243,7 @@ const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
         <button
           style={getPeriodButtonStyle('ytd')}
           onClick={() => {
-            console.log('Button clicked: ytd');
             setSelectedPeriod('ytd');
-            console.log('State should be updated to: ytd');
           }}
           onMouseEnter={(e) => {
             if (selectedPeriod !== 'ytd') {
@@ -287,9 +261,7 @@ const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
         <button
           style={getPeriodButtonStyle('all')}
           onClick={() => {
-            console.log('Button clicked: all');
             setSelectedPeriod('all');
-            console.log('State should be updated to: all');
           }}
           onMouseEnter={(e) => {
             if (selectedPeriod !== 'all') {
@@ -304,6 +276,63 @@ const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
         >
           全期間
         </button>
+      </div>
+
+      {/* グラフ表示オプション */}
+      <div style={{
+        display: 'flex',
+        gap: '15px',
+        marginBottom: '20px',
+        padding: '15px',
+        background: '#f8f9fa',
+        borderRadius: '8px',
+        alignItems: 'center'
+      }}>
+        <span style={{ fontWeight: '600', color: '#333', marginRight: '10px' }}>表示項目:</span>
+        <label style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          cursor: 'pointer',
+          padding: '6px 12px',
+          background: showProfit ? '#dcfce7' : 'white',
+          border: `2px solid ${showProfit ? '#10b981' : '#e5e7eb'}`,
+          borderRadius: '6px',
+          fontSize: '14px',
+          fontWeight: showProfit ? '600' : '400',
+          color: showProfit ? '#065f46' : '#6b7280',
+          transition: 'all 0.2s'
+        }}>
+          <input
+            type="checkbox"
+            checked={showProfit}
+            onChange={(e) => setShowProfit(e.target.checked)}
+            style={{ cursor: 'pointer' }}
+          />
+          損益
+        </label>
+        <label style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          cursor: 'pointer',
+          padding: '6px 12px',
+          background: showExchangeRate ? '#fef3c7' : 'white',
+          border: `2px solid ${showExchangeRate ? '#f59e0b' : '#e5e7eb'}`,
+          borderRadius: '6px',
+          fontSize: '14px',
+          fontWeight: showExchangeRate ? '600' : '400',
+          color: showExchangeRate ? '#92400e' : '#6b7280',
+          transition: 'all 0.2s'
+        }}>
+          <input
+            type="checkbox"
+            checked={showExchangeRate}
+            onChange={(e) => setShowExchangeRate(e.target.checked)}
+            style={{ cursor: 'pointer' }}
+          />
+          為替レート
+        </label>
       </div>
 
       {/* サマリー */}
@@ -384,7 +413,7 @@ const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
       {/* チャート */}
       <ResponsiveContainer width="100%" height={400}>
         <LineChart
-          data={filteredData}
+          data={chartData}
           margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
         >
           <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
@@ -395,24 +424,75 @@ const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
             style={{ fontSize: '12px' }}
           />
           <YAxis
+            yAxisId="left"
             tickFormatter={formatCurrency}
             stroke="#666"
             style={{ fontSize: '12px' }}
           />
+          {showExchangeRate && (
+            <YAxis
+              yAxisId="right"
+              orientation="right"
+              stroke="#f59e0b"
+              style={{ fontSize: '12px' }}
+              tickFormatter={(value) => `¥${value.toFixed(0)}`}
+            />
+          )}
           <Tooltip content={<CustomTooltip />} />
           <Legend
             wrapperStyle={{ paddingTop: '20px' }}
-            formatter={(value) => value === 'totalValueJPY' ? 'ポートフォリオ評価額' : value}
+            formatter={(value) => {
+              if (value === 'totalValueJPY') return 'ポートフォリオ評価額';
+              if (value === 'profit') return '損益';
+              if (value === 'exchangeRate') return '為替レート (USD/JPY)';
+              return value;
+            }}
           />
+          {/* 損益表示時に0円のベースラインを追加 */}
+          {showProfit && (
+            <ReferenceLine 
+              yAxisId="left" 
+              y={0} 
+              stroke="#94a3b8" 
+              strokeWidth={2}
+              strokeDasharray="5 5"
+              label={{ value: '±0円', position: 'right', fill: '#64748b', fontSize: 12 }}
+            />
+          )}
           <Line
-            type="monotone"
+            yAxisId="left"
+            type="linear"
             dataKey="totalValueJPY"
             stroke="#667eea"
-            strokeWidth={3}
+            strokeWidth={2}
             dot={false}
             activeDot={{ r: 6 }}
             name="ポートフォリオ評価額"
           />
+          {showProfit && (
+            <Line
+              yAxisId="left"
+              type="linear"
+              dataKey="profit"
+              stroke="#10b981"
+              strokeWidth={2}
+              dot={false}
+              activeDot={{ r: 6 }}
+              name="損益"
+            />
+          )}
+          {showExchangeRate && (
+            <Line
+              yAxisId="right"
+              type="linear"
+              dataKey="exchangeRate"
+              stroke="#f59e0b"
+              strokeWidth={2}
+              dot={false}
+              activeDot={{ r: 6 }}
+              name="為替レート (USD/JPY)"
+            />
+          )}
         </LineChart>
       </ResponsiveContainer>
 
@@ -435,13 +515,13 @@ const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
         <div>
           <div style={{ fontSize: '13px', color: '#666', marginBottom: '5px' }}>最高評価額</div>
           <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#333' }}>
-            ¥{Math.round(Math.max(...filteredData.map(d => d.totalValueJPY))).toLocaleString()}
+            ¥{Math.round(Math.max(...chartData.map(d => d.totalValueJPY))).toLocaleString()}
           </div>
         </div>
         <div>
           <div style={{ fontSize: '13px', color: '#666', marginBottom: '5px' }}>最低評価額</div>
           <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#333' }}>
-            ¥{Math.round(Math.min(...filteredData.map(d => d.totalValueJPY))).toLocaleString()}
+            ¥{Math.round(Math.min(...chartData.map(d => d.totalValueJPY))).toLocaleString()}
           </div>
         </div>
       </div>
