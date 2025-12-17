@@ -596,7 +596,7 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
       // その年の売買日を取得
       const startDate = new Date(yearData.startDate);
       const endDate = isLatestYear 
-        ? new Date() 
+        ? new Date(chartData[chartData.length - 1].date) // 最後のスナップショットの日付
         : new Date(yearData.endDate);
       
       const yearTradeDates = getTradeDates.filter(tradeDate => {
@@ -642,17 +642,22 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
           ];
         }
         
-        // 最新年の場合、現在の評価額を追加
-        if (isLatestYear && lastSnapshot.totalValueJPY !== totalValueJPY) {
-          const today = new Date().toISOString().split('T')[0];
-          snapshotsForCalc = [
-            ...snapshotsForCalc,
-            {
-              date: today,
-              totalValueJPY: totalValueJPY,
-              totalValueUSD: 0
-            }
-          ];
+        // 🔥 修正: 最新年で最後のスナップショット日付が今日でない場合のみ追加
+        if (isLatestYear) {
+          const lastSnapshotDate = lastSnapshot.date;
+          const todayStr = new Date().toISOString().split('T')[0];
+          
+          // 最後のスナップショットが今日でない場合のみ、現在評価額を追加
+          if (lastSnapshotDate !== todayStr && lastSnapshot.totalValueJPY !== totalValueJPY) {
+            snapshotsForCalc = [
+              ...snapshotsForCalc,
+              {
+                date: todayStr,
+                totalValueJPY: totalValueJPY,
+                totalValueUSD: 0
+              }
+            ];
+          }
         }
         
         const pseudoResult = calculatePseudoCAGR(
