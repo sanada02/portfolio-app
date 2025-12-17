@@ -6,6 +6,7 @@ const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
   const [selectedPeriod, setSelectedPeriod] = useState('30d'); // デフォルトは30日
   const [showExchangeRate, setShowExchangeRate] = useState(false); // 為替レート表示
   const [showProfit, setShowProfit] = useState(false); // 損益表示
+  const [showPortfolioValue, setShowPortfolioValue] = useState(true); // ポートフォリオ評価額表示
 
   // データを日付でソートし、期間に応じてフィルタリング
   const { sortedData, filteredData } = useMemo(() => {
@@ -156,10 +157,19 @@ const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
     );
   }
 
-  // 日付フォーマット
+  // 日付フォーマット（期間に応じて年を表示）
   const formatDate = (dateStr) => {
     const date = new Date(dateStr);
-    return `${date.getMonth() + 1}/${date.getDate()}`;
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    
+    // 全期間または1年表示の場合は年も表示
+    if (selectedPeriod === 'all' || selectedPeriod === '1y') {
+      const year = date.getFullYear();
+      return `${year}/${month}/${day}`;
+    }
+    
+    return `${month}/${day}`;
   };
 
   // 通貨フォーマット（日本語表記）
@@ -325,6 +335,28 @@ const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
           gap: '6px',
           cursor: 'pointer',
           padding: '6px 12px',
+          background: showPortfolioValue ? '#dbeafe' : 'white',
+          border: `2px solid ${showPortfolioValue ? '#3b82f6' : '#e5e7eb'}`,
+          borderRadius: '6px',
+          fontSize: '14px',
+          fontWeight: showPortfolioValue ? '600' : '400',
+          color: showPortfolioValue ? '#1e40af' : '#6b7280',
+          transition: 'all 0.2s'
+        }}>
+          <input
+            type="checkbox"
+            checked={showPortfolioValue}
+            onChange={(e) => setShowPortfolioValue(e.target.checked)}
+            style={{ cursor: 'pointer' }}
+          />
+          評価額
+        </label>
+        <label style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          cursor: 'pointer',
+          padding: '6px 12px',
           background: showProfit ? '#dcfce7' : 'white',
           border: `2px solid ${showProfit ? '#10b981' : '#e5e7eb'}`,
           borderRadius: '6px',
@@ -406,7 +438,7 @@ const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
             ? '0 4px 12px rgba(67, 233, 123, 0.3)'
             : '0 4px 12px rgba(250, 112, 154, 0.3)'
         }}>
-          <div style={{ fontSize: '14px', marginBottom: '8px', opacity: 0.9 }}>損益</div>
+          <div style={{ fontSize: '14px', marginBottom: '8px', opacity: 0.9 }}>期間損益</div>
           <div style={{ 
             fontSize: '28px', 
             fontWeight: 'bold',
@@ -420,22 +452,6 @@ const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
             color: 'white'
           }}>
             ({isPositive ? '+' : ''}{changePercent}%)
-          </div>
-        </div>
-
-        <div style={{
-          background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-          color: 'white',
-          padding: '20px',
-          borderRadius: '10px',
-          boxShadow: '0 4px 12px rgba(79, 172, 254, 0.3)'
-        }}>
-          <div style={{ fontSize: '14px', marginBottom: '8px', opacity: 0.9 }}>データ期間</div>
-          <div style={{ fontSize: '18px', fontWeight: 'bold' }}>
-            {filteredData.length}日分
-          </div>
-          <div style={{ fontSize: '13px', marginTop: '4px', opacity: 0.9 }}>
-            {new Date(firstSnapshot.date).toLocaleDateString('ja-JP')} 〜
           </div>
         </div>
       </div>
@@ -490,16 +506,18 @@ const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
               label={{ value: '±0円', position: 'right', fill: '#64748b', fontSize: 12 }}
             />
           )}
-          <Line
-            yAxisId="left"
-            type="linear"
-            dataKey="totalValueJPY"
-            stroke="#667eea"
-            strokeWidth={2}
-            dot={false}
-            activeDot={{ r: 6 }}
-            name="ポートフォリオ評価額"
-          />
+          {showPortfolioValue && (
+            <Line
+              yAxisId="left"
+              type="linear"
+              dataKey="totalValueJPY"
+              stroke="#667eea"
+              strokeWidth={2}
+              dot={false}
+              activeDot={{ r: 6 }}
+              name="ポートフォリオ評価額"
+            />
+          )}
           {showProfit && (
             <Line
               yAxisId="left"
