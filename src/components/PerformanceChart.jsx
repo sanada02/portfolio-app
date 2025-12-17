@@ -1391,137 +1391,6 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
         </div>
       </div>
 
-      {/* 年次パフォーマンステーブル */}
-      {selectedPeriod === 'all' && yearlyPerformance.length > 0 && (
-        <div style={{
-          marginTop: '30px',
-          marginBottom: '30px',
-          padding: '20px',
-          background: 'white',
-          borderRadius: '10px',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-        }}>
-          <h3 style={{ 
-            marginBottom: '16px', 
-            fontSize: '18px', 
-            fontWeight: '600',
-            color: '#333'
-          }}>
-            📊 年次パフォーマンス
-          </h3>
-          
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{
-              width: '100%',
-              borderCollapse: 'collapse',
-              fontSize: '13px'
-            }}>
-              <thead>
-                <tr style={{ 
-                  background: '#f8f9fa',
-                  borderBottom: '2px solid #dee2e6'
-                }}>
-                  <th style={{ padding: '12px 8px', textAlign: 'left', fontWeight: '600' }}>年</th>
-                  <th style={{ padding: '12px 8px', textAlign: 'right', fontWeight: '600' }}>期末評価額</th>
-                  <th style={{ padding: '12px 8px', textAlign: 'right', fontWeight: '600' }}>期間損益</th>
-                  <th style={{ padding: '12px 8px', textAlign: 'right', fontWeight: '600' }}>CAGR</th>
-                  <th style={{ padding: '12px 8px', textAlign: 'right', fontWeight: '600' }}>MDD</th>
-                  <th style={{ padding: '12px 8px', textAlign: 'right', fontWeight: '600' }}>CAGR/MDD</th>
-                </tr>
-              </thead>
-              <tbody>
-                {yearlyPerformance.map((data, index) => (
-                  <tr 
-                    key={data.year}
-                    style={{ 
-                      borderBottom: '1px solid #e5e7eb',
-                      background: index % 2 === 0 ? 'white' : '#f9fafb'
-                    }}
-                  >
-                    <td style={{ padding: '12px 8px', fontWeight: '600' }}>
-                      {data.year}
-                      {data.hasTrades && data.pseudoCagr !== null && (
-                        <span style={{ 
-                          marginLeft: '6px', 
-                          fontSize: '10px', 
-                          color: '#667eea',
-                          fontWeight: '400'
-                        }}>
-                          *
-                        </span>
-                      )}
-                    </td>
-                    <td style={{ padding: '12px 8px', textAlign: 'right' }}>
-                      ¥{Math.round(data.endValue).toLocaleString()}
-                    </td>
-                    <td style={{ 
-                      padding: '12px 8px', 
-                      textAlign: 'right',
-                      color: data.profit >= 0 ? '#10b981' : '#ef4444',
-                      fontWeight: '500'
-                    }}>
-                      {data.profit >= 0 ? '+' : ''}¥{Math.round(data.profit).toLocaleString()}
-                      <div style={{ fontSize: '11px', marginTop: '2px' }}>
-                        ({data.profitPercent >= 0 ? '+' : ''}{data.profitPercent.toFixed(2)}%)
-                      </div>
-                    </td>
-                    <td style={{ 
-                      padding: '12px 8px', 
-                      textAlign: 'right',
-                      color: data.displayCagr >= 0 ? '#10b981' : '#ef4444',
-                      fontWeight: '500'
-                    }}>
-                      {data.displayCagr >= 0 ? '+' : ''}{data.displayCagr.toFixed(2)}%
-                      {data.pseudoCagr !== null && data.realCagr !== 0 && (
-                        <div style={{ 
-                          fontSize: '11px', 
-                          marginTop: '2px',
-                          color: '#6b7280',
-                          fontWeight: '400'
-                        }}>
-                          ({data.realCagr >= 0 ? '+' : ''}{data.realCagr.toFixed(2)}%)
-                        </div>
-                      )}
-                    </td>
-                    <td style={{ 
-                      padding: '12px 8px', 
-                      textAlign: 'right',
-                      color: '#ef4444',
-                      fontWeight: '500'
-                    }}>
-                      {data.mdd.toFixed(2)}%
-                    </td>
-                    <td style={{ 
-                      padding: '12px 8px', 
-                      textAlign: 'right',
-                      fontWeight: '500'
-                    }}>
-                      {data.cagrMddRatio !== null 
-                        ? data.cagrMddRatio.toFixed(2) 
-                        : '∞'
-                      }
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          
-          <div style={{ 
-            marginTop: '12px', 
-            fontSize: '11px', 
-            color: '#6b7280' 
-          }}>
-            <p style={{ margin: '4px 0' }}>
-              * 売買が発生した年は疑似CAGR（時間加重リターン）を使用, 通常のCAGRは()内に表示
-            </p>
-            <p style={{ margin: '4px 0' }}>
-              CAGR/MDD: 数値が大きいほどリスクに対するリターンが高い
-            </p>
-          </div>
-        </div>
-      )}
-
       {/* チャート */}
       <ResponsiveContainer width="100%" height={400}>
         <LineChart
@@ -1705,6 +1574,138 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
           </div>
         )}
       </div>
+
+      {/* 年次パフォーマンステーブル */}
+      {selectedPeriod === 'all' && yearlyPerformance.length > 0 && (
+        <div style={{
+          marginTop: '30px',
+          marginBottom: '30px',
+          padding: '20px',
+          background: 'white',
+          borderRadius: '10px',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+        }}>
+          <h3 style={{ 
+            marginBottom: '16px', 
+            fontSize: '18px', 
+            fontWeight: '600',
+            color: '#333'
+          }}>
+            📊 年次パフォーマンス
+          </h3>
+          
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{
+              width: '100%',
+              borderCollapse: 'collapse',
+              fontSize: '13px'
+            }}>
+              <thead>
+                <tr style={{ 
+                  background: '#f8f9fa',
+                  borderBottom: '2px solid #dee2e6'
+                }}>
+                  <th style={{ padding: '12px 8px', textAlign: 'left', fontWeight: '600' }}>年</th>
+                  <th style={{ padding: '12px 8px', textAlign: 'right', fontWeight: '600' }}>期末評価額</th>
+                  <th style={{ padding: '12px 8px', textAlign: 'right', fontWeight: '600' }}>期間損益</th>
+                  <th style={{ padding: '12px 8px', textAlign: 'right', fontWeight: '600' }}>CAGR</th>
+                  <th style={{ padding: '12px 8px', textAlign: 'right', fontWeight: '600' }}>MDD</th>
+                  <th style={{ padding: '12px 8px', textAlign: 'right', fontWeight: '600' }}>CAGR/MDD</th>
+                </tr>
+              </thead>
+              <tbody>
+                {yearlyPerformance.map((data, index) => (
+                  <tr 
+                    key={data.year}
+                    style={{ 
+                      borderBottom: '1px solid #e5e7eb',
+                      background: index % 2 === 0 ? 'white' : '#f9fafb'
+                    }}
+                  >
+                    <td style={{ padding: '12px 8px', fontWeight: '600' }}>
+                      {data.year}
+                      {data.hasTrades && data.pseudoCagr !== null && (
+                        <span style={{ 
+                          marginLeft: '6px', 
+                          fontSize: '10px', 
+                          color: '#667eea',
+                          fontWeight: '400'
+                        }}>
+                          *
+                        </span>
+                      )}
+                    </td>
+                    <td style={{ padding: '12px 8px', textAlign: 'right' }}>
+                      ¥{Math.round(data.endValue).toLocaleString()}
+                    </td>
+                    <td style={{ 
+                      padding: '12px 8px', 
+                      textAlign: 'right',
+                      color: data.profit >= 0 ? '#10b981' : '#ef4444',
+                      fontWeight: '500'
+                    }}>
+                      {data.profit >= 0 ? '+' : ''}¥{Math.round(data.profit).toLocaleString()}
+                      <div style={{ fontSize: '11px', marginTop: '2px' }}>
+                        ({data.profitPercent >= 0 ? '+' : ''}{data.profitPercent.toFixed(2)}%)
+                      </div>
+                    </td>
+                    <td style={{ 
+                      padding: '12px 8px', 
+                      textAlign: 'right',
+                      color: data.displayCagr >= 0 ? '#10b981' : '#ef4444',
+                      fontWeight: '500'
+                    }}>
+                      {data.displayCagr >= 0 ? '+' : ''}{data.displayCagr.toFixed(2)}%
+                      {data.pseudoCagr !== null && data.realCagr !== 0 && (
+                        <div style={{ 
+                          fontSize: '11px', 
+                          marginTop: '2px',
+                          color: '#6b7280',
+                          fontWeight: '400'
+                        }}>
+                          ({data.realCagr >= 0 ? '+' : ''}{data.realCagr.toFixed(2)}%)
+                        </div>
+                      )}
+                    </td>
+                    <td style={{ 
+                      padding: '12px 8px', 
+                      textAlign: 'right',
+                      color: '#ef4444',
+                      fontWeight: '500'
+                    }}>
+                      {data.mdd.toFixed(2)}%
+                    </td>
+                    <td style={{ 
+                      padding: '12px 8px', 
+                      textAlign: 'right',
+                      fontWeight: '500'
+                    }}>
+                      {data.cagrMddRatio !== null 
+                        ? data.cagrMddRatio.toFixed(2) 
+                        : '∞'
+                      }
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          
+          <div style={{ 
+            marginTop: '12px', 
+            fontSize: '11px', 
+            color: '#6b7280' 
+          }}>
+            <p style={{ margin: '4px 0' }}>
+              * 売買が発生した年は疑似CAGR（時間加重リターン）を使用, 通常のCAGRは()内に表示
+            </p>
+            <p style={{ margin: '4px 0' }}>
+              CAGR/MDD: 数値が大きいほどリスクに対するリターンが高い
+            </p>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
