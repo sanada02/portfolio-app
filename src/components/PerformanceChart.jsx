@@ -147,6 +147,69 @@ const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
     };
   }, [chartData, showExchangeRate]);
 
+  // CAGRとMDDを計算
+  const { cagr, mdd } = useMemo(() => {
+    if (!chartData || chartData.length < 2 || initialValue === 0) {
+      return { cagr: 0, mdd: 0 };
+    }
+
+    // CAGR計算
+    const startValue = initialValue;
+    const endValue = totalValueJPY;
+    const startDate = new Date(chartData[0].date);
+    const endDate = new Date(chartData[chartData.length - 1].date);
+    const years = (endDate - startDate) / (365.25 * 24 * 60 * 60 * 1000);
+    
+    let calculatedCagr = 0;
+    if (years > 0 && startValue > 0) {
+      calculatedCagr = (Math.pow(endValue / startValue, 1 / years) - 1) * 100;
+    }
+
+    // MDD（最大ドローダウン）計算
+    let maxValue = chartData[0].totalValueJPY;
+    let maxDrawdown = 0;
+    
+    for (const point of chartData) {
+      if (point.totalValueJPY > maxValue) {
+        maxValue = point.totalValueJPY;
+      }
+      const drawdown = ((point.totalValueJPY - maxValue) / maxValue) * 100;
+      if (drawdown < maxDrawdown) {
+        maxDrawdown = drawdown;
+      }
+    }
+
+    return {
+      cagr: calculatedCagr,
+      mdd: maxDrawdown
+    };
+  }, [chartData, initialValue, totalValueJPY]);
+
+  // 全期間表示時は月次データに変換
+  const displayData = useMemo(() => {
+    if (selectedPeriod !== 'all' || chartData.length === 0) {
+      return chartData;
+    }
+
+    // 月ごとにグループ化
+    const monthlyData = {};
+    
+    chartData.forEach(item => {
+      const date = new Date(item.date);
+      const yearMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      
+      // 各月の最後のデータを保持
+      if (!monthlyData[yearMonth] || item.date > monthlyData[yearMonth].date) {
+        monthlyData[yearMonth] = item;
+      }
+    });
+
+    // 月次データを配列に変換してソート
+    return Object.values(monthlyData).sort((a, b) => 
+      new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+  }, [chartData, selectedPeriod]);
+
   // 早期リターン（すべてのフックの後に）
   if (!data || data.length === 0) {
     return (
@@ -454,12 +517,39 @@ const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
             ({isPositive ? '+' : ''}{changePercent}%)
           </div>
         </div>
+
+        <div style={{
+          background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+          color: 'white',
+          padding: '20px',
+          borderRadius: '10px',
+          boxShadow: '0 4px 12px rgba(240, 147, 251, 0.3)'
+        }}>
+          <div style={{ fontSize: '14px', marginBottom: '8px', opacity: 0.9 }}>投資パフォーマンス</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <div style={{ fontSize: '13px', opacity: 0.9, marginBottom: '4px' }}>CAGR</div>
+              <div style={{ fontSize: '22px', fontWeight: 'bold' }}>
+                {cagr >= 0 ? '+' : ''}{cagr.toFixed(2)}%
+              </div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: '13px', opacity: 0.9, marginBottom: '4px' }}>MDD</div>
+              <div style={{ fontSize: '22px', fontWeight: 'bold' }}>
+                {mdd.toFixed(2)}%
+              </div>
+            </div>
+          </div>
+          <div style={{ fontSize: '11px', marginTop: '8px', opacity: 0.8 }}>
+            年平均成長率 / 最大ドローダウン
+          </div>
+        </div>
       </div>
 
       {/* チャート */}
       <ResponsiveContainer width="100%" height={400}>
         <LineChart
-          data={chartData}
+          data={displayData}
           margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
         >
           <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
@@ -564,15 +654,26 @@ const PerformanceChart = ({ data, portfolio, exchangeRate }) => {
         <div>
           <div style={{ fontSize: '13px', color: '#666', marginBottom: '5px' }}>最高評価額</div>
           <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#333' }}>
-            ¥{Math.round(Math.max(...chartData.map(d => d.totalValueJPY))).toLocaleString()}
+            ¥{Math.round(Math.max(...displayData.map(d => d.totalValueJPY))).toLocaleString()}
           </div>
         </div>
         <div>
           <div style={{ fontSize: '13px', color: '#666', marginBottom: '5px' }}>最低評価額</div>
           <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#333' }}>
-            ¥{Math.round(Math.min(...chartData.map(d => d.totalValueJPY))).toLocaleString()}
+            ¥{Math.round(Math.min(...displayData.map(d => d.totalValueJPY))).toLocaleString()}
           </div>
         </div>
+        {selectedPeriod === 'all' && (
+          <div>
+            <div style={{ fontSize: '13px', color: '#666', marginBottom: '5px' }}>表示モード</div>
+            <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#333' }}>
+              月次データ
+            </div>
+            <div style={{ fontSize: '11px', color: '#999', marginTop: '2px' }}>
+              ({displayData.length}ヶ月分)
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
