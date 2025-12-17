@@ -355,34 +355,66 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
       const lastCluster = clusters[clusters.length - 1];
       const lastDate = lastCluster[lastCluster.length - 1];
       const diffDays = Math.round((d - lastDate) / (24 * 60 * 60 * 1000));
-      if (diffDays <= 1) {
-        // 連続（当日または翌日）→同クラスター
+      if (diffDays <= 2) {
+        // 🔥 修正: 中1日空いている場合も同クラスター
+        // 例: 12-01と12-03（差2日）も同じクラスター
         lastCluster.push(d);
       } else {
         clusters.push([d]);
       }
-    });
+      });
 
-    // クラスターの開始日だけを breakpoints として使う（firstValidDate以降）
+    // 🔥 修正: クラスターの開始日と最後の日をbreakpointsに追加
     const clusterStarts = clusters.map(c => c[0])
       .filter(d => d >= firstValidDate && d <= endDate);
+    
+    const clusterEnds = clusters.map(c => c[c.length - 1])
+      .filter(d => d >= firstValidDate && d <= endDate);
 
-    // breakpoints: firstValidDate, clusterStarts (excluding first if equal), endDate
+
+     // デバッグログ: クラスター情報
+      console.log('=== Cluster Debug ===');
+      console.log('Total trades:', trades.length);
+      console.log('Clusters:', clusters.length);
+      clusters.forEach((cluster, i) => {
+        console.log(`Cluster ${i}:`, cluster.map(d => toYmd(d)));
+      });
+      console.log('Cluster starts:', clusterStarts.map(d => toYmd(d)));
+      console.log('Cluster ends:', clusterEnds.map(d => toYmd(d)));
+
+
+    // breakpoints: firstValidDate, clusterStarts, clusterEnds, endDate
     const breakpoints = [firstValidDate];
+    
+    // クラスター開始日を追加
     clusterStarts.forEach(cs => {
-      if (cs.getTime() !== firstValidDate.getTime()) breakpoints.push(cs);
+      if (cs.getTime() !== firstValidDate.getTime()) {
+        breakpoints.push(cs);
+      }
     });
+    
+    // クラスター最後の日を追加
+    clusterEnds.forEach(ce => {
+      if (ce.getTime() !== firstValidDate.getTime()) {
+        breakpoints.push(ce);
+      }
+    });
+    
+    // 期間終了日を追加
     if (endDate.getTime() !== breakpoints[breakpoints.length - 1].getTime()) {
       breakpoints.push(endDate);
     }
 
-    // ユニーク化 & ソート（念のため）
+    // ユニーク化 & ソート
     const uniqueBreakpoints = Array.from(new Set(breakpoints.map(d => d.getTime())))
       .sort((a, b) => a - b)
       .map(t => new Date(t));
 
     // クラスター開始日の集合（YMD）を作る
     const clusterStartYmdSet = new Set(clusterStarts.map(d => toYmd(d)));
+
+    // 🔥 追加: クラスター最後の日の集合を作る
+    const clusterEndYmdSet = new Set(clusterEnds.map(d => toYmd(d)));
 
     // 各区間を計算
     const segments = [];
@@ -393,7 +425,13 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
       const segStart = uniqueBreakpoints[i];
       const nextBp = uniqueBreakpoints[i + 1];
 
-      // 次の区切りがクラスター開始なら endForValue = 前日 (= クラスター開始日の前日)
+      // 🔥 修正: segStartがクラスター開始日で、かつクラスター最後の日でない場合はスキップ
+      const segStartYmd = toYmd(segStart);
+      if (clusterStartYmdSet.has(segStartYmd) && !clusterEndYmdSet.has(segStartYmd)) {
+        continue;
+      }
+
+      // 次の区切りがクラスター開始なら endForValue = 前日
       let endForValue = nextBp;
       if (clusterStartYmdSet.has(toYmd(nextBp))) {
         const dayBefore = new Date(nextBp);
@@ -401,8 +439,11 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
         endForValue = dayBefore;
       }
 
-      // endForValue が segStart より前または同日の場合は無効（連続売買の内部等）
+      // endForValue が segStart より前または同日の場合は無効
       if (endForValue <= segStart) continue;
+
+      // デバッグログ
+      console.log(`Segment ${i}: ${toYmd(segStart)} ~ ${toYmd(endForValue)}`);
 
       const startValue = getValueAtDate(segStart);
       const endValue = getValueAtDate(endForValue);
@@ -410,7 +451,7 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
       if (startValue <= 0 || endValue <= 0) continue;
 
       const daysDiff = (endForValue - segStart) / (24 * 60 * 60 * 1000);
-      if (daysDiff < 1) continue; // 1日未満はスキップ
+      if (daysDiff < 1) continue;
 
       const segReturn = (endValue - startValue) / startValue;
       const multiplier = 1 + segReturn;
