@@ -13,9 +13,10 @@ const PortfolioSummaryAndTable = ({ portfolio, exchangeRate, onEdit, onDelete, o
     const hasRealtimePrice = portfolio.some(asset => asset.currentPrice && asset.currentPrice !== asset.purchasePrice);
 
     // リアルタイム価格がある場合は、現在の評価額とスナップショットの最新を比較
-    if (hasRealtimePrice && snapshotData && snapshotData.length >= 2) {
+    if (hasRealtimePrice && snapshotData && snapshotData.length >= 3) {
       const latestSnapshot = snapshotData[snapshotData.length - 1];
       const previousSnapshot = snapshotData[snapshotData.length - 2];
+      const twoDaysAgoSnapshot = snapshotData[snapshotData.length - 3];
 
       // 現在の評価額を計算
       let currentTotalValueJPY = 0;
@@ -57,7 +58,7 @@ const PortfolioSummaryAndTable = ({ portfolio, exchangeRate, onEdit, onDelete, o
 
       // 🔥 修正: 銘柄別でも取引時間外判定を行う
       const assetChanges = {};
-      if (latestSnapshot.assetBreakdown && previousSnapshot.assetBreakdown) {
+      if (latestSnapshot.assetBreakdown && previousSnapshot.assetBreakdown && twoDaysAgoSnapshot.assetBreakdown) {
         for (const asset of portfolio) {
           const assetKey = asset.symbol || asset.isinCd || asset.id;
           const currentValue = currentAssetValues[assetKey] || 0;
@@ -82,14 +83,24 @@ const PortfolioSummaryAndTable = ({ portfolio, exchangeRate, onEdit, onDelete, o
             }
           }
           
-          // 🔥 投資信託は常にスナップショット比較
-          // 投資信託はリアルタイム価格がないため、スナップショット間の比較のみ有効
+          // 🔥 2つ前のスナップショットの値を取得（投資信託用）
+          let twoDaysAgoValue = 0;
+          if (twoDaysAgoSnapshot.assetBreakdown[assetKey]) {
+            if (typeof twoDaysAgoSnapshot.assetBreakdown[assetKey] === 'object') {
+              twoDaysAgoValue = twoDaysAgoSnapshot.assetBreakdown[assetKey].valueJPY || 0;
+            } else {
+              twoDaysAgoValue = twoDaysAgoSnapshot.assetBreakdown[assetKey] || 0;
+            }
+          }
+          
+          // 🔥 投資信託は一つ前と2つ前を比較（更新遅延対応）
           let change, changePercent;
           
           if (asset.type === 'fund') {
-            // 投資信託: 常にスナップショット比較
-            change = latestValue - previousValue;
-            changePercent = previousValue > 0 ? (change / previousValue) * 100 : 0;
+            // 投資信託: 一つ前と2つ前のスナップショット比較
+            // （最新と一つ前が同じ値になることが多いため）
+            change = previousValue - twoDaysAgoValue;
+            changePercent = twoDaysAgoValue > 0 ? (change / twoDaysAgoValue) * 100 : 0;
           } else {
             // その他: 取引時間外判定を行う
             const assetValueDiff = Math.abs(currentValue - latestValue);
@@ -123,14 +134,73 @@ const PortfolioSummaryAndTable = ({ portfolio, exchangeRate, onEdit, onDelete, o
       };
     }
 
-    // リアルタイム価格がない、またはスナップショットが2つ未満の場合
+    // リアルタイム価格がない、またはスナップショットが3つ未満の場合
+    // スナップショットが2つ以上あれば、通常の比較を試みる
     if (!snapshotData || snapshotData.length < 2) {
       return null;
     }
 
-    // 最新と一つ前のスナップショットを比較
+    // スナップショットが2つの場合
+    if (snapshotData.length === 2) {
+      const latestSnapshot = snapshotData[1];
+      const previousSnapshot = snapshotData[0];
+
+      // 全体の前日比
+      const totalChange = latestSnapshot.totalValueJPY - previousSnapshot.totalValueJPY;
+      const totalChangePercent = previousSnapshot.totalValueJPY > 0 
+        ? (totalChange / previousSnapshot.totalValueJPY) * 100 
+        : 0;
+
+      // 銘柄別の前日比
+      const assetChanges = {};
+      if (latestSnapshot.assetBreakdown && previousSnapshot.assetBreakdown) {
+        for (const asset of portfolio) {
+          const assetKey = asset.symbol || asset.isinCd || asset.id;
+          
+          // 最新スナップショットの値を取得
+          let latestValue = 0;
+          if (latestSnapshot.assetBreakdown[assetKey]) {
+            if (typeof latestSnapshot.assetBreakdown[assetKey] === 'object') {
+              latestValue = latestSnapshot.assetBreakdown[assetKey].valueJPY || 0;
+            } else {
+              latestValue = latestSnapshot.assetBreakdown[assetKey] || 0;
+            }
+          }
+          
+          // 一つ前のスナップショットの値を取得
+          let previousValue = 0;
+          if (previousSnapshot.assetBreakdown[assetKey]) {
+            if (typeof previousSnapshot.assetBreakdown[assetKey] === 'object') {
+              previousValue = previousSnapshot.assetBreakdown[assetKey].valueJPY || 0;
+            } else {
+              previousValue = previousSnapshot.assetBreakdown[assetKey] || 0;
+            }
+          }
+          
+          const change = latestValue - previousValue;
+          const changePercent = previousValue > 0 ? (change / previousValue) * 100 : 0;
+
+          assetChanges[asset.id] = {
+            change,
+            changePercent
+          };
+        }
+      }
+
+      return {
+        totalChange,
+        totalChangePercent,
+        assetChanges,
+        previousDate: previousSnapshot.date,
+        latestDate: latestSnapshot.date,
+        isRealtime: false
+      };
+    }
+
+    // スナップショットが3つ以上ある場合
     const latestSnapshot = snapshotData[snapshotData.length - 1];
     const previousSnapshot = snapshotData[snapshotData.length - 2];
+    const twoDaysAgoSnapshot = snapshotData[snapshotData.length - 3];
 
     // 全体の前日比
     const totalChange = latestSnapshot.totalValueJPY - previousSnapshot.totalValueJPY;
@@ -140,7 +210,7 @@ const PortfolioSummaryAndTable = ({ portfolio, exchangeRate, onEdit, onDelete, o
 
     // 銘柄別の前日比
     const assetChanges = {};
-    if (latestSnapshot.assetBreakdown && previousSnapshot.assetBreakdown) {
+    if (latestSnapshot.assetBreakdown && previousSnapshot.assetBreakdown && twoDaysAgoSnapshot.assetBreakdown) {
       for (const asset of portfolio) {
         const assetKey = asset.symbol || asset.isinCd || asset.id;
         
@@ -164,8 +234,28 @@ const PortfolioSummaryAndTable = ({ portfolio, exchangeRate, onEdit, onDelete, o
           }
         }
         
-        const change = latestValue - previousValue;
-        const changePercent = previousValue > 0 ? (change / previousValue) * 100 : 0;
+        // 2つ前のスナップショットの値を取得
+        let twoDaysAgoValue = 0;
+        if (twoDaysAgoSnapshot.assetBreakdown[assetKey]) {
+          if (typeof twoDaysAgoSnapshot.assetBreakdown[assetKey] === 'object') {
+            twoDaysAgoValue = twoDaysAgoSnapshot.assetBreakdown[assetKey].valueJPY || 0;
+          } else {
+            twoDaysAgoValue = twoDaysAgoSnapshot.assetBreakdown[assetKey] || 0;
+          }
+        }
+        
+        // 🔥 投資信託は一つ前と2つ前を比較
+        let change, changePercent;
+        
+        if (asset.type === 'fund') {
+          // 投資信託: 一つ前と2つ前のスナップショット比較
+          change = previousValue - twoDaysAgoValue;
+          changePercent = twoDaysAgoValue > 0 ? (change / twoDaysAgoValue) * 100 : 0;
+        } else {
+          // その他: 最新と一つ前のスナップショット比較
+          change = latestValue - previousValue;
+          changePercent = previousValue > 0 ? (change / previousValue) * 100 : 0;
+        }
 
         assetChanges[asset.id] = {
           change,
