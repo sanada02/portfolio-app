@@ -1,8 +1,18 @@
-// src/components/AssetDetailModal.jsx (購入履歴追加版)
+// src/components/AssetDetailModal.jsx (配当セクション追加版)
 import React, { useState } from 'react';
-import { getSellHistory } from '../utils/storage';
+import { getSellHistory, getDividendsByAssetIds, getTotalDividends } from '../utils/storage';
 
-const AssetDetailModal = ({ asset, onClose, exchangeRate, onEditPurchase, onDeletePurchase, onEditSellRecord, onDeleteSellRecord }) => {
+const AssetDetailModal = ({ 
+  asset, 
+  onClose, 
+  exchangeRate, 
+  onEditPurchase, 
+  onDeletePurchase, 
+  onEditSellRecord, 
+  onDeleteSellRecord,
+  onEditDividend,
+  onDeleteDividend
+}) => {
   const [expandedSection, setExpandedSection] = useState(null);
   
   // 統合銘柄の場合は全IDの売却履歴を取得
@@ -11,6 +21,10 @@ const AssetDetailModal = ({ asset, onClose, exchangeRate, onEditPurchase, onDele
   const sellHistory = allSellHistory.filter(record => 
     assetIds.includes(record.originalAssetId)
   );
+
+  // 🔥 配当データを取得
+  const dividends = getDividendsByAssetIds(assetIds);
+  const totalDividends = getTotalDividends(assetIds);
 
   const formatCurrency = (value, currency) => {
     if (currency === 'USD') {
@@ -124,7 +138,111 @@ const AssetDetailModal = ({ asset, onClose, exchangeRate, onEditPurchase, onDele
           </div>
         )}
 
-        {/* 🔥 新機能: 購入履歴 */}
+        {/* 🔥 配当セクション */}
+        {dividends.length > 0 && (
+          <div className="detail-section">
+            <h3 
+              onClick={() => toggleSection('dividends')}
+              style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+            >
+              {expandedSection === 'dividends' ? '▼' : '▶'} 配当履歴 ({dividends.length}回)
+            </h3>
+            
+            {/* 合計配当の表示（常に表示） */}
+            <div style={{
+              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+              color: 'white',
+              padding: '16px',
+              borderRadius: '8px',
+              marginTop: '12px',
+              marginBottom: expandedSection === 'dividends' ? '16px' : '0'
+            }}>
+              <div style={{ fontSize: '13px', marginBottom: '4px', opacity: 0.9 }}>
+                累計配当金額
+              </div>
+              <div style={{ fontSize: '24px', fontWeight: 'bold' }}>
+                ¥{totalDividends.toLocaleString()}
+              </div>
+            </div>
+
+            {expandedSection === 'dividends' && (
+              <div style={{ overflowX: 'auto', marginTop: '16px' }}>
+                <table style={{ fontSize: '13px' }}>
+                  <thead>
+                    <tr>
+                      <th>配当受取日</th>
+                      <th style={{ textAlign: 'right' }}>配当金額</th>
+                      <th style={{ textAlign: 'center' }}>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dividends.map((dividend) => (
+                      <tr key={dividend.id}>
+                        <td>{formatDate(dividend.date)}</td>
+                        <td style={{ textAlign: 'right', fontWeight: '600', color: '#10b981' }}>
+                          ¥{dividend.amountJPY.toLocaleString()}
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                            <button
+                              onClick={() => {
+                                if (onEditDividend) {
+                                  onEditDividend(dividend);
+                                }
+                              }}
+                              style={{
+                                padding: '4px 12px',
+                                fontSize: '12px',
+                                background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              編集
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (window.confirm(`${formatDate(dividend.date)}の配当記録を削除しますか？`)) {
+                                  if (onDeleteDividend) {
+                                    onDeleteDividend(dividend.id);
+                                  }
+                                }
+                              }}
+                              style={{
+                                padding: '4px 12px',
+                                fontSize: '12px',
+                                background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              削除
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ fontWeight: 'bold', background: '#f8f9fa' }}>
+                      <td>合計</td>
+                      <td style={{ textAlign: 'right', color: '#10b981' }}>
+                        ¥{totalDividends.toLocaleString()}
+                      </td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 購入履歴 */}
         {asset.purchaseRecords && asset.purchaseRecords.length > 0 && (
           <div className="detail-section">
             <h3 

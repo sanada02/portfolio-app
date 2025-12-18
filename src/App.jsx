@@ -1,6 +1,6 @@
-// src/App.jsx (リファクタリング版 - 修正版)
+// src/App.jsx (配当機能統合版)
 import React, { useState, useEffect, useRef } from 'react';
-import { loadPortfolio, savePortfolio, exportData, importData, getSellHistory } from './utils/storage';
+import { loadPortfolio, savePortfolio, exportData, importData, getSellHistory, addDividend, updateDividend, deleteDividend } from './utils/storage';
 import { updateAllPrices, rebuildAllHistory, regenerateDailySnapshots } from './utils/priceAPI';
 import { getDailySnapshots } from './utils/database';
 import { getConsolidatedPortfolio, getTagAnalysis, getAssetsByTag, getAllUniqueTags } from './utils/portfolioUtils';
@@ -11,6 +11,8 @@ import EditPurchaseRecordModal from './components/EditPurchaseRecordModal';
 import EditSellRecordModal from './components/EditSellRecordModal';
 import SellAssetModal from './components/SellAssetModal';
 import AssetDetailModal from './components/AssetDetailModal';
+import AddDividendModal from './components/AddDividendModal';
+import EditDividendModal from './components/EditDividendModal';
 import PortfolioSummaryAndTable from './components/PortfolioSummaryAndTable';
 import PerformanceChart from './components/PerformanceChart';
 import AssetAllocationChart from './components/AssetAllocationChart';
@@ -26,8 +28,11 @@ function App() {
   const [isEditSellRecordModalOpen, setIsEditSellRecordModalOpen] = useState(false);
   const [isSellModalOpen, setIsSellModalOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [isAddDividendModalOpen, setIsAddDividendModalOpen] = useState(false);
+  const [isEditDividendModalOpen, setIsEditDividendModalOpen] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [selectedSellRecord, setSelectedSellRecord] = useState(null);
+  const [selectedDividend, setSelectedDividend] = useState(null);
   const [exchangeRate, setExchangeRate] = useState(150);
   const [isLoading, setIsLoading] = useState(false);
   const [snapshotData, setSnapshotData] = useState([]);
@@ -35,7 +40,7 @@ function App() {
   const [toasts, setToasts] = useState([]);
   const [excludeCrypto, setExcludeCrypto] = useState(false);
   const [selectedTags, setSelectedTags] = useState([]);
-  const [sellHistory, setSellHistory] = useState([]);  // ← 追加
+  const [sellHistory, setSellHistory] = useState([]);
   const fileInputRef = useRef(null);
 
   // ========== Initialize ==========
@@ -43,13 +48,12 @@ function App() {
     const loadedPortfolio = loadPortfolio();
     setPortfolio(loadedPortfolio);
     
-    const loadedSellHistory = getSellHistory();  // ← 追加
-    setSellHistory(loadedSellHistory);           // ← 追加
+    const loadedSellHistory = getSellHistory();
+    setSellHistory(loadedSellHistory);
     
     loadSnapshots();
   }, []);
 
-  // 🔥 修正: nullを渡して全データを取得
   const loadSnapshots = async () => {
     const snapshots = await getDailySnapshots(null);
     setSnapshotData(snapshots);
@@ -77,9 +81,49 @@ function App() {
     handleSaveSellRecord
   } = usePortfolioHandlers(portfolio, setPortfolio, addNotification, loadSnapshots);
 
-  // deleteAssetにgetConsolidatedPortfolioを渡すラッパー
   const handleDeleteAsset = (assetId) => {
     deleteAsset(assetId, () => getConsolidatedPortfolio(portfolio));
+  };
+
+  // ========== Dividend Handlers ==========
+  
+  const handleAddDividend = (dividendData) => {
+    const result = addDividend(dividendData);
+    if (result) {
+      addNotification('配当を追加しました', 'success');
+      setIsAddDividendModalOpen(false);
+      loadSnapshots();
+    } else {
+      addNotification('配当の追加に失敗しました', 'error');
+    }
+  };
+
+  const handleEditDividend = (dividend) => {
+    setSelectedDividend(dividend);
+    setIsEditDividendModalOpen(true);
+    setIsDetailModalOpen(false);
+  };
+
+  const handleSaveDividend = (dividendId, updates) => {
+    const success = updateDividend(dividendId, updates);
+    if (success) {
+      addNotification('配当を更新しました', 'success');
+      setIsEditDividendModalOpen(false);
+      setSelectedDividend(null);
+      loadSnapshots();
+    } else {
+      addNotification('配当の更新に失敗しました', 'error');
+    }
+  };
+
+  const handleDeleteDividend = (dividendId) => {
+    const success = deleteDividend(dividendId);
+    if (success) {
+      addNotification('配当を削除しました', 'success');
+      loadSnapshots();
+    } else {
+      addNotification('配当の削除に失敗しました', 'error');
+    }
   };
 
   // ========== Price & History Updates ==========
@@ -179,6 +223,7 @@ function App() {
           `バックアップをインポートしますか？\n\n` +
           `銘柄数: ${data.portfolio.length}\n` +
           `売却履歴: ${data.sellHistory?.length || 0}件\n` +
+          `配当データ: ${data.dividends?.length || 0}件\n` +
           `バックアップ日時: ${new Date(data.exportDate).toLocaleString('ja-JP')}\n\n` +
           `現在のデータは上書きされます。`
         )) {
@@ -295,6 +340,7 @@ function App() {
         <h1>📊 ポートフォリオ管理システム</h1>
         <div className="header-buttons">
           <button onClick={() => setIsAddModalOpen(true)}>➕ 資産追加</button>
+          <button onClick={() => setIsAddDividendModalOpen(true)}>💰 配当追加</button>
           <button onClick={handleUpdatePrices} disabled={isLoading}>
             {isLoading ? '⏳ 更新中...' : '🔄 価格更新'}
           </button>
@@ -429,7 +475,6 @@ function App() {
                 
                 {allTags.length > 0 ? (
                   <>
-                    {/* Tag Selection UI */}
                     <div style={{
                       background: '#f8f9fa',
                       padding: '20px',
@@ -522,7 +567,6 @@ function App() {
                       )}
                     </div>
 
-                    {/* Chart & Details */}
                     {selectedTags.length > 0 ? (
                       <>
                         <AssetAllocationChart
@@ -595,6 +639,27 @@ function App() {
         />
       )}
 
+      {isAddDividendModalOpen && (
+        <AddDividendModal
+          onClose={() => setIsAddDividendModalOpen(false)}
+          onAdd={handleAddDividend}
+          portfolio={portfolio}
+          addNotification={addNotification}
+        />
+      )}
+
+      {isEditDividendModalOpen && selectedDividend && (
+        <EditDividendModal
+          dividend={selectedDividend}
+          onClose={() => {
+            setIsEditDividendModalOpen(false);
+            setSelectedDividend(null);
+          }}
+          onSave={handleSaveDividend}
+          addNotification={addNotification}
+        />
+      )}
+
       {isEditConsolidatedModalOpen && selectedAsset && (
         <EditConsolidatedAssetModal
           asset={selectedAsset}
@@ -658,6 +723,8 @@ function App() {
           onDeletePurchase={handleDeletePurchase}
           onEditSellRecord={handleEditSellRecord}
           onDeleteSellRecord={handleDeleteSellRecord}
+          onEditDividend={handleEditDividend}
+          onDeleteDividend={handleDeleteDividend}
         />
       )}
     </div>
