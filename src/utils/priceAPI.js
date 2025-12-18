@@ -1,4 +1,4 @@
-// src/utils/priceAPI.js (無限再帰バグ修正版)
+// src/utils/priceAPI.js (配当対応版 - regenerateDailySnapshotsを修正)
 import { getCache, setCache, savePriceHistory, getPriceByDate, getClosestPrice, saveExchangeRate, getLatestExchangeRate, saveDailySnapshot } from './database';
 import { getSellHistory } from './storage';
 
@@ -457,22 +457,26 @@ export const rebuildAllHistory = async (portfolio) => {
 };
 
 // ===========================
-// 🔥 日次スナップショットを再生成（無限再帰バグ修正版）
+// 🔥 日次スナップショットを再生成（配当対応版）
 // ===========================
 
 export const regenerateDailySnapshots = async (portfolio) => {
   console.log('========================================');
-  console.log('📊 日次スナップショットの再生成を開始します');
+  console.log('📊 日次スナップショットの再生成を開始します（配当対応）');
   console.log('========================================');
   
   if (portfolio.length === 0) {
     return { success: false, message: 'ポートフォリオが空です' };
   }
   
-  // 売却履歴を取得
+  // 売却履歴と配当データを取得
   const sellHistory = getSellHistory();
+  const { getDividends } = await import('./storage');
+  const dividends = getDividends();
   
-  // 🔥 修正: 直接インポートして無限再帰を防ぐ
+  console.log(`配当データ: ${dividends.length}件`);
+  
+  // 🔥 直接インポートして無限再帰を防ぐ
   const db = (await import('./database')).default;
   
   // 最も古い購入日を特定
@@ -504,7 +508,7 @@ export const regenerateDailySnapshots = async (portfolio) => {
       continue;
     }
     
-    // 🔥 修正: 為替レートを直接DBから取得（無限再帰を防ぐ）
+    // 🔥 為替レートを直接DBから取得（無限再帰を防ぐ）
     let exchangeRate = 150;
     try {
       // 前後3日以内の最も近い為替レートを取得
@@ -527,6 +531,19 @@ export const regenerateDailySnapshots = async (portfolio) => {
       }
     } catch (error) {
       console.error(`為替レート取得エラー (${dateStr}):`, error);
+    }
+    
+    // 🔥 この日までの累計配当を計算
+    let cumulativeDividends = 0;
+    try {
+      cumulativeDividends = dividends
+        .filter(div => {
+          const divDate = new Date(div.date);
+          return divDate <= currentDate;
+        })
+        .reduce((sum, div) => sum + div.amountJPY, 0);
+    } catch (error) {
+      console.error(`配当累計計算エラー (${dateStr}):`, error);
     }
     
     // 各銘柄のこの日の価格と実質保有数量を計算
@@ -554,7 +571,7 @@ export const regenerateDailySnapshots = async (portfolio) => {
         continue;
       }
       
-      // 🔥 修正: DBから直接価格を取得（無限再帰を防ぐ）
+      // 🔥 DBから直接価格を取得（無限再帰を防ぐ）
       let price = asset.purchasePrice; // デフォルト値
       
       try {
@@ -594,9 +611,8 @@ export const regenerateDailySnapshots = async (portfolio) => {
       }
       
       breakdown[asset.type] = (breakdown[asset.type] || 0) + value;
-  
-
-          // 銘柄別データの保存
+      
+      // 銘柄別データの保存
       const assetKey = asset.symbol || asset.isinCd || asset.id;
       if (!assetBreakdown[assetKey]) {
         assetBreakdown[assetKey] = {
@@ -617,13 +633,19 @@ export const regenerateDailySnapshots = async (portfolio) => {
         assetBreakdown[assetKey].valueJPY += value;
         assetBreakdown[assetKey].valueUSD += asset.currency === 'USD' ? price * activeQuantity : 0;
       }
-
     }
-
     
-    // データがある場合のみスナップショットを保存
+    // データがある場合のみスナップショットを保存（配当累計を含む）
     if (hasData) {
-      await saveDailySnapshot(dateStr, totalValueJPY, totalValueUSD, breakdown, exchangeRate, assetBreakdown);
+      await saveDailySnapshot(
+        dateStr, 
+        totalValueJPY, 
+        totalValueUSD, 
+        breakdown, 
+        exchangeRate, 
+        assetBreakdown,
+        cumulativeDividends  // 🔥 配当累計を追加
+      );
       snapshotCount++;
       
       if (snapshotCount % 10 === 0) {
@@ -635,7 +657,7 @@ export const regenerateDailySnapshots = async (portfolio) => {
   }
   
   console.log('\n========================================');
-  console.log(`✓ ${snapshotCount}日分のスナップショットを生成しました`);
+  console.log(`✓ ${snapshotCount}日分のスナップショットを生成しました（配当累計含む）`);
   console.log('========================================\n');
   
   return {

@@ -1,16 +1,16 @@
-// src/utils/database.js (修正版)
+// src/utils/database.js (配当対応版)
 import Dexie from 'dexie';
 
 // IndexedDB の初期化
 const db = new Dexie('PortfolioDB');
 
-// バージョンを4に変更（スキーマ変更: dailySnapshotsに銘柄別データ追加）
-db.version(4).stores({
+// バージョンを5に変更（スキーマ変更: dailySnapshotsに配当累計追加）
+db.version(5).stores({
   // 価格履歴（日次）
   priceHistory: '[symbol+date], symbol, date, price, currency',
   
-  // ポートフォリオスナップショット（日次）- 銘柄別データ追加
-  dailySnapshots: 'date, totalValueJPY, totalValueUSD, breakdown, exchangeRate, assetBreakdown',
+  // ポートフォリオスナップショット（日次）- 配当累計追加
+  dailySnapshots: 'date, totalValueJPY, totalValueUSD, breakdown, exchangeRate, assetBreakdown, cumulativeDividends',
   
   // 為替レート履歴
   exchangeRates: 'date, rate',
@@ -20,6 +20,13 @@ db.version(4).stores({
 });
 
 // 旧バージョンとの互換性
+db.version(4).stores({
+  priceHistory: '[symbol+date], symbol, date, price, currency',
+  dailySnapshots: 'date, totalValueJPY, totalValueUSD, breakdown, exchangeRate, assetBreakdown',
+  exchangeRates: 'date, rate',
+  apiCache: 'key, data, timestamp'
+});
+
 db.version(3).stores({
   priceHistory: '[symbol+date], symbol, date, price, currency',
   dailySnapshots: 'date, totalValueJPY, totalValueUSD, breakdown, exchangeRate',
@@ -67,11 +74,41 @@ export const getPriceByDate = async (symbol, date) => {
 // 日次スナップショット
 // ===========================
 
-export const saveDailySnapshot = async (date, totalValueJPY, totalValueUSD, breakdown, exchangeRate = null, assetBreakdown = null) => {
-  await db.dailySnapshots.put({ date, totalValueJPY, totalValueUSD, breakdown, exchangeRate, assetBreakdown });
+/**
+ * 日次スナップショットを保存（配当累計対応）
+ * @param {string} date - 日付 'YYYY-MM-DD'
+ * @param {number} totalValueJPY - 総評価額（円）
+ * @param {number} totalValueUSD - USD資産の総評価額
+ * @param {Object} breakdown - 種別ごとの内訳
+ * @param {number|null} exchangeRate - 為替レート
+ * @param {Object|null} assetBreakdown - 銘柄別データ
+ * @param {number} cumulativeDividends - この日までの累計配当（円）
+ */
+export const saveDailySnapshot = async (
+  date, 
+  totalValueJPY, 
+  totalValueUSD, 
+  breakdown, 
+  exchangeRate = null, 
+  assetBreakdown = null,
+  cumulativeDividends = 0
+) => {
+  await db.dailySnapshots.put({ 
+    date, 
+    totalValueJPY, 
+    totalValueUSD, 
+    breakdown, 
+    exchangeRate, 
+    assetBreakdown,
+    cumulativeDividends
+  });
 };
 
-// 🔥 修正: daysにnullを渡すと全データを取得できるようにする
+/**
+ * 日次スナップショットを取得
+ * @param {number|null} days - 取得日数（nullの場合は全データ）
+ * @returns {Array} スナップショットの配列
+ */
 export const getDailySnapshots = async (days = 30) => {
   // daysがnullの場合は全データを取得
   if (days === null) {
