@@ -204,8 +204,43 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
 
     const firstSnap = viewFilteredData[0];
     const initValue = firstSnap?.totalValueJPY || 0;
-    const calcChange = finalTotalJPY - initValue;
-    const calcChangePercent = initValue > 0 ? ((calcChange / initValue) * 100).toFixed(2) : 0;
+
+    // 期間損益を単価変動で計算（購入・売却の影響を除外）
+    let calcChange = 0;
+    let totalInvestment = 0;
+
+    if (portfolio && portfolio.length > 0) {
+      // タブに応じてフィルタリング
+      let assetsToCalculate = portfolio;
+
+      if (activeTab === 'byAsset') {
+        const assetsToShow = selectedAssets.length > 0 ? selectedAssets : portfolio.map(a => a.id);
+        assetsToCalculate = portfolio.filter(asset => assetsToShow.includes(asset.id));
+      } else if (activeTab === 'byTag') {
+        const tagsToShow = selectedTags.length > 0 ? selectedTags : Array.from(new Set(portfolio.flatMap(a => a.tags || [])));
+        assetsToCalculate = portfolio.filter(asset => asset.tags && asset.tags.some(tag => tagsToShow.includes(tag)));
+      }
+
+      // 各資産の損益を計算（購入単価 × 数量 vs 現在単価 × 数量）
+      assetsToCalculate.forEach(asset => {
+        const currentPrice = asset.currentPrice || asset.purchasePrice;
+        const purchasePrice = asset.purchasePrice;
+        const quantity = asset.activeQuantity;
+
+        const currentValue = currentPrice * quantity;
+        const investmentValue = purchasePrice * quantity;
+
+        if (asset.currency === 'USD') {
+          calcChange += (currentValue - investmentValue) * exchangeRate;
+          totalInvestment += investmentValue * exchangeRate;
+        } else {
+          calcChange += (currentValue - investmentValue);
+          totalInvestment += investmentValue;
+        }
+      });
+    }
+
+    const calcChangePercent = totalInvestment > 0 ? ((calcChange / totalInvestment) * 100).toFixed(2) : 0;
     const calcIsPositive = calcChange >= 0;
 
     // 最新の為替レートをスナップショットから取得
