@@ -148,15 +148,46 @@ export const isoToJSTDate = (isoStr) => {
 export const daysBetweenJST = (startDateStr, endDateStr) => {
   const start = new Date(startDateStr);
   const end = new Date(endDateStr);
-  
+
   const jstStart = new Date(start.toLocaleString('en-US', { timeZone: 'Asia/Tokyo' }));
   const jstEnd = new Date(end.toLocaleString('en-US', { timeZone: 'Asia/Tokyo' }));
-  
+
   jstStart.setHours(0, 0, 0, 0);
   jstEnd.setHours(0, 0, 0, 0);
-  
+
   const diffTime = Math.abs(jstEnd - jstStart);
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  
+
   return diffDays;
+};
+
+/**
+ * 日本時間で今年の最初の日を取得
+ */
+export const getYearStartJST = () => {
+  const now = new Date();
+  const jstNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Tokyo' }));
+
+  const year = jstNow.getFullYear();
+  return `${year}-01-01`;
+};
+
+/**
+ * 期間タイプに応じた比較開始日を取得
+ * @param {'day' | 'week' | 'month' | 'year'} periodType
+ * @returns {string} YYYY-MM-DD形式の日付
+ */
+export const getComparisonStartDate = (periodType) => {
+  switch (periodType) {
+    case 'day':
+      return getDaysAgoJST(1);
+    case 'week':
+      return getDaysAgoJST(7);
+    case 'month':
+      return getDaysAgoJST(30);
+    case 'year':
+      return getYearStartJST();
+    default:
+      return getDaysAgoJST(1);
+  }
 };

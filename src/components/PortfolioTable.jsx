@@ -1,7 +1,7 @@
-// src/components/PortfolioTable.jsx (前日比追加版)
+// src/components/PortfolioTable.jsx (期間比較対応版)
 import React, { useState, useMemo } from 'react';
 
-const PortfolioTable = ({ portfolio, exchangeRate, previousDayComparison, onEdit, onDelete, onSell, onDetail }) => {
+const PortfolioTable = ({ portfolio, exchangeRate, periodComparison, periodLabel = '前日比', onEdit, onDelete, onSell, onDetail }) => {
   const [sortConfig, setSortConfig] = useState({ key: 'currentValueJPY', direction: 'desc' });
 
   const formatCurrency = (value, currency) => {
@@ -79,20 +79,20 @@ const PortfolioTable = ({ portfolio, exchangeRate, previousDayComparison, onEdit
             bValue = bInvestment > 0 ? (bProfit / bInvestment) * 100 : 0;
             break;
           case 'dayChange':
-            // 前日比でソート
-            if (previousDayComparison && previousDayComparison.assetChanges) {
-              aValue = previousDayComparison.assetChanges[a.id]?.change || 0;
-              bValue = previousDayComparison.assetChanges[b.id]?.change || 0;
+            // 期間比較でソート
+            if (periodComparison && periodComparison.assetChanges) {
+              aValue = periodComparison.assetChanges[a.id]?.change || 0;
+              bValue = periodComparison.assetChanges[b.id]?.change || 0;
             } else {
               aValue = 0;
               bValue = 0;
             }
             break;
           case 'dayChangePercent':
-            // 前日比%でソート
-            if (previousDayComparison && previousDayComparison.assetChanges) {
-              aValue = previousDayComparison.assetChanges[a.id]?.changePercent || 0;
-              bValue = previousDayComparison.assetChanges[b.id]?.changePercent || 0;
+            // 期間比較%でソート
+            if (periodComparison && periodComparison.assetChanges) {
+              aValue = periodComparison.assetChanges[a.id]?.changePercent || 0;
+              bValue = periodComparison.assetChanges[b.id]?.changePercent || 0;
             } else {
               aValue = 0;
               bValue = 0;
@@ -114,7 +114,7 @@ const PortfolioTable = ({ portfolio, exchangeRate, previousDayComparison, onEdit
     }
     
     return sortableItems;
-  }, [portfolio, sortConfig, exchangeRate, previousDayComparison]);
+  }, [portfolio, sortConfig, exchangeRate, periodComparison]);
 
   // ソート変更ハンドラー
   const requestSort = (key) => {
@@ -185,7 +185,7 @@ const PortfolioTable = ({ portfolio, exchangeRate, previousDayComparison, onEdit
               損益率{getSortIndicator('profitPercent')}
             </th>
             <th onClick={() => requestSort('dayChange')} style={{ textAlign: 'right', cursor: 'pointer', userSelect: 'none' }}>
-              前日比{getSortIndicator('dayChange')}
+              {periodLabel}{getSortIndicator('dayChange')}
             </th>
             <th style={{ textAlign: 'center' }}>操作</th>
           </tr>
@@ -201,10 +201,10 @@ const PortfolioTable = ({ portfolio, exchangeRate, previousDayComparison, onEdit
             // 円換算の評価額
             const currentValueJPY = asset.currency === 'USD' ? currentValue * exchangeRate : currentValue;
 
-            // 前日比を取得
-            const dayChangeData = previousDayComparison?.assetChanges?.[asset.id];
-            const dayChange = dayChangeData?.change || 0;
-            const dayChangePercent = dayChangeData?.changePercent || 0;
+            // 期間比較を取得
+            const periodChangeData = periodComparison?.assetChanges?.[asset.id];
+            const periodChange = periodChangeData?.change || 0;
+            const periodChangePercent = periodChangeData?.changePercent || 0;
 
             return (
               <tr key={asset.id}>
@@ -260,13 +260,13 @@ const PortfolioTable = ({ portfolio, exchangeRate, previousDayComparison, onEdit
                   {profitPercent >= 0 ? '+' : ''}{profitPercent.toFixed(2)}%
                 </td>
                 <td style={{ textAlign: 'right' }}>
-                  {previousDayComparison ? (
+                  {periodComparison ? (
                     <div>
-                      <div className={getProfitClass(dayChange)} style={{ fontWeight: '600' }}>
-                        {dayChange >= 0 ? '+' : ''}¥{Math.round(dayChange).toLocaleString()}
+                      <div className={getProfitClass(periodChange)} style={{ fontWeight: '600' }}>
+                        {periodChange >= 0 ? '+' : ''}¥{Math.round(periodChange).toLocaleString()}
                       </div>
-                      <div className={getProfitPercentClass(dayChangePercent)} style={{ fontSize: '11px', marginTop: '2px' }}>
-                        ({dayChangePercent >= 0 ? '+' : ''}{dayChangePercent.toFixed(2)}%)
+                      <div className={getProfitPercentClass(periodChangePercent)} style={{ fontSize: '11px', marginTop: '2px' }}>
+                        ({periodChangePercent >= 0 ? '+' : ''}{periodChangePercent.toFixed(2)}%)
                       </div>
                     </div>
                   ) : (

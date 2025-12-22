@@ -703,15 +703,14 @@ export const regenerateDailySnapshots = async (portfolio) => {
 export const generateTodaySnapshot = async (portfolio, exchangeRate) => {
   console.log('📸 今日のスナップショットを生成中...');
 
+  const today = new Date().toISOString().split('T')[0];
+
   // 市場が開いている銘柄があるかチェック
   const hasOpenMarket = portfolio.some(asset => asset.isMarketOpen === true);
 
   if (hasOpenMarket) {
-    console.log('⚠ 市場が開場中のため、スナップショットは作成されません（市場終了後に再度価格更新してください）');
-    return { success: false, message: '市場開場中のため、スナップショットは作成されませんでした' };
+    console.log('⚠ 一部の市場が開場中です。開場中の銘柄は前回の確定価格を使用します。');
   }
-
-  const today = new Date().toISOString().split('T')[0];
 
   // 売却履歴と配当データを取得
   const sellHistory = getSellHistory();
@@ -723,6 +722,11 @@ export const generateTodaySnapshot = async (portfolio, exchangeRate) => {
   const cumulativeDividends = dividends
     .filter(div => new Date(div.date) <= todayDate)
     .reduce((sum, div) => sum + div.amountJPY, 0);
+
+  // 最新のスナップショットを取得（市場開場中の銘柄の価格用）
+  const { getDailySnapshots } = await import('./database');
+  const snapshots = await getDailySnapshots(null);
+  const latestSnapshot = snapshots.length > 0 ? snapshots[snapshots.length - 1] : null;
 
   // 各銘柄の現在の価格と実質保有数量を計算
   let totalValueJPY = 0;
@@ -748,7 +752,18 @@ export const generateTodaySnapshot = async (portfolio, exchangeRate) => {
       continue;
     }
 
-    const currentPrice = asset.currentPrice || asset.purchasePrice;
+    // 市場開場中の銘柄は、最新スナップショットの価格を使用（確定価格のみ記録）
+    let priceToUse = asset.currentPrice || asset.purchasePrice;
+    if (asset.isMarketOpen === true && latestSnapshot && latestSnapshot.assetBreakdown) {
+      const assetKey = asset.symbol || asset.isinCd || asset.id;
+      const snapshotAsset = latestSnapshot.assetBreakdown[assetKey];
+      if (snapshotAsset && typeof snapshotAsset === 'object' && snapshotAsset.price) {
+        priceToUse = snapshotAsset.price;
+        console.log(`  ⚠ ${asset.name}: 市場開場中のため前回の確定価格 (${snapshotAsset.price}) を使用`);
+      }
+    }
+
+    const currentPrice = priceToUse;
     const value = asset.currency === 'USD'
       ? currentPrice * activeQuantity * exchangeRate
       : currentPrice * activeQuantity;
