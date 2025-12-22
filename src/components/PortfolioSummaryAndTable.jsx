@@ -9,11 +9,19 @@ const PortfolioSummaryAndTable = ({ portfolio, exchangeRate, onEdit, onDelete, o
       return null;
     }
 
-    // リアルタイム価格を持つ銘柄があるかチェック
-    const hasRealtimePrice = portfolio.some(asset => asset.currentPrice && asset.currentPrice !== asset.purchasePrice);
+    // 市場が開いている銘柄があるかチェック
+    const hasOpenMarket = portfolio.some(asset => {
+      if (asset.isMarketOpen === true) {
+        return true;
+      }
+      if (asset.isMarketOpen === undefined) {
+        return false; // 安全のため閉場として扱う
+      }
+      return false;
+    });
 
-    // リアルタイム価格がある場合は、現在の評価額とスナップショットの最新を比較
-    if (hasRealtimePrice && snapshotData && snapshotData.length >= 3) {
+    // スナップショットが2つ以上ある場合
+    if (snapshotData && snapshotData.length >= 2) {
       const latestSnapshot = snapshotData[snapshotData.length - 1];
       const previousSnapshot = snapshotData[snapshotData.length - 2];
       const twoDaysAgoSnapshot = snapshotData[snapshotData.length - 3];
@@ -34,35 +42,17 @@ const PortfolioSummaryAndTable = ({ portfolio, exchangeRate, onEdit, onDelete, o
         currentAssetValues[assetKey] = valueJPY;
       }
 
-      // 🔥 修正: 現在の評価額と最新スナップショットがほぼ同じ場合（取引時間外）は、
-      // 最新と一つ前のスナップショットを比較する
-      const valueDiff = Math.abs(currentTotalValueJPY - latestSnapshot.totalValueJPY);
-      const isOutsideTradingHours = valueDiff < 100; // 100円未満の差は同じとみなす
+      // 全市場が閉じているかチェック
+      const allMarketsClosed = !hasOpenMarket;
 
-      // 全体の前日比を計算
-      let totalChange, totalChangePercent;
-      
-      if (isOutsideTradingHours) {
-        // 取引時間外: スナップショット比較
-        totalChange = latestSnapshot.totalValueJPY - previousSnapshot.totalValueJPY;
-        totalChangePercent = previousSnapshot.totalValueJPY > 0 
-          ? (totalChange / previousSnapshot.totalValueJPY) * 100 
-          : 0;
-      } else {
-        // 取引時間中: リアルタイム比較
-        totalChange = currentTotalValueJPY - latestSnapshot.totalValueJPY;
-        totalChangePercent = latestSnapshot.totalValueJPY > 0 
-          ? (totalChange / latestSnapshot.totalValueJPY) * 100 
-          : 0;
-      }
-
-      // 🔥 修正: 銘柄別でも取引時間外判定を行う
+      // 銘柄別の前日比を計算（先に計算して、その後合計する）
       const assetChanges = {};
-      if (latestSnapshot.assetBreakdown && previousSnapshot.assetBreakdown && twoDaysAgoSnapshot.assetBreakdown) {
+      let totalChange = 0;
+      if (latestSnapshot.assetBreakdown && previousSnapshot.assetBreakdown) {
         for (const asset of portfolio) {
           const assetKey = asset.symbol || asset.isinCd || asset.id;
           const currentValue = currentAssetValues[assetKey] || 0;
-          
+
           // 最新スナップショットの値を取得
           let latestValue = 0;
           if (latestSnapshot.assetBreakdown[assetKey]) {
@@ -72,46 +62,71 @@ const PortfolioSummaryAndTable = ({ portfolio, exchangeRate, onEdit, onDelete, o
               latestValue = latestSnapshot.assetBreakdown[assetKey] || 0;
             }
           }
-          
-          // 一つ前のスナップショットの値を取得
+
+          // 価格が変化した最も近いスナップショットを探す
           let previousValue = 0;
-          if (previousSnapshot.assetBreakdown[assetKey]) {
-            if (typeof previousSnapshot.assetBreakdown[assetKey] === 'object') {
-              previousValue = previousSnapshot.assetBreakdown[assetKey].valueJPY || 0;
+          let foundDifferentValue = false;
+
+          // 最大7日前まで遡って、価格が異なるスナップショットを探す
+          for (let i = snapshotData.length - 2; i >= Math.max(0, snapshotData.length - 8); i--) {
+            const snapshot = snapshotData[i];
+            if (!snapshot.assetBreakdown || !snapshot.assetBreakdown[assetKey]) {
+              continue;
+            }
+
+            let value = 0;
+            if (typeof snapshot.assetBreakdown[assetKey] === 'object') {
+              value = snapshot.assetBreakdown[assetKey].valueJPY || 0;
             } else {
-              previousValue = previousSnapshot.assetBreakdown[assetKey] || 0;
+              value = snapshot.assetBreakdown[assetKey] || 0;
+            }
+
+            // 価格が異なる場合、そのスナップショットを使用
+            if (Math.abs(value - latestValue) > 1) { // 1円以上の差があれば異なると判定
+              previousValue = value;
+              foundDifferentValue = true;
+              break;
             }
           }
-          
-          // 🔥 2つ前のスナップショットの値を取得（投資信託用）
+
+          // 価格が変化したスナップショットが見つからない場合は、一つ前のスナップショットを使用
+          if (!foundDifferentValue) {
+            if (previousSnapshot.assetBreakdown[assetKey]) {
+              if (typeof previousSnapshot.assetBreakdown[assetKey] === 'object') {
+                previousValue = previousSnapshot.assetBreakdown[assetKey].valueJPY || 0;
+              } else {
+                previousValue = previousSnapshot.assetBreakdown[assetKey] || 0;
+              }
+            }
+          }
+
+          // 2つ前のスナップショットの値を取得（投資信託用）
           let twoDaysAgoValue = 0;
-          if (twoDaysAgoSnapshot.assetBreakdown[assetKey]) {
+          if (twoDaysAgoSnapshot && twoDaysAgoSnapshot.assetBreakdown && twoDaysAgoSnapshot.assetBreakdown[assetKey]) {
             if (typeof twoDaysAgoSnapshot.assetBreakdown[assetKey] === 'object') {
               twoDaysAgoValue = twoDaysAgoSnapshot.assetBreakdown[assetKey].valueJPY || 0;
             } else {
               twoDaysAgoValue = twoDaysAgoSnapshot.assetBreakdown[assetKey] || 0;
             }
           }
-          
-          // 🔥 投資信託は一つ前と2つ前を比較（更新遅延対応）
+
           let change, changePercent;
-          
-          if (asset.type === 'fund') {
+
+          if (asset.type === 'fund' && twoDaysAgoValue > 0) {
             // 投資信託: 一つ前と2つ前のスナップショット比較
             // （最新と一つ前が同じ値になることが多いため）
             change = previousValue - twoDaysAgoValue;
             changePercent = twoDaysAgoValue > 0 ? (change / twoDaysAgoValue) * 100 : 0;
           } else {
-            // その他: 取引時間外判定を行う
-            const assetValueDiff = Math.abs(currentValue - latestValue);
-            const isAssetOutsideTradingHours = assetValueDiff < 10;
-            
-            if (isAssetOutsideTradingHours) {
-              // 取引時間外: スナップショット比較
+            // その他の資産: 市場の開閉状態で判定
+            const isMarketClosed = asset.isMarketOpen !== true;
+
+            if (isMarketClosed) {
+              // 市場が閉じている: スナップショット比較
               change = latestValue - previousValue;
               changePercent = previousValue > 0 ? (change / previousValue) * 100 : 0;
             } else {
-              // 取引時間中: リアルタイム比較
+              // 市場が開いている: リアルタイム比較
               change = currentValue - latestValue;
               changePercent = latestValue > 0 ? (change / latestValue) * 100 : 0;
             }
@@ -121,157 +136,30 @@ const PortfolioSummaryAndTable = ({ portfolio, exchangeRate, onEdit, onDelete, o
             change,
             changePercent
           };
+
+          // 銘柄別の前日比を合計
+          totalChange += change;
         }
       }
 
-      return {
-        totalChange,
-        totalChangePercent,
-        assetChanges,
-        previousDate: isOutsideTradingHours ? previousSnapshot.date : latestSnapshot.date,
-        latestDate: isOutsideTradingHours ? latestSnapshot.date : '現在',
-        isRealtime: !isOutsideTradingHours
-      };
-    }
-
-    // リアルタイム価格がない、またはスナップショットが3つ未満の場合
-    // スナップショットが2つ以上あれば、通常の比較を試みる
-    if (!snapshotData || snapshotData.length < 2) {
-      return null;
-    }
-
-    // スナップショットが2つの場合
-    if (snapshotData.length === 2) {
-      const latestSnapshot = snapshotData[1];
-      const previousSnapshot = snapshotData[0];
-
-      // 全体の前日比
-      const totalChange = latestSnapshot.totalValueJPY - previousSnapshot.totalValueJPY;
-      const totalChangePercent = previousSnapshot.totalValueJPY > 0 
-        ? (totalChange / previousSnapshot.totalValueJPY) * 100 
+      // 全体の前日比率を計算（現在の評価額から逆算）
+      const currentTotalValue = allMarketsClosed ? latestSnapshot.totalValueJPY : currentTotalValueJPY;
+      const totalChangePercent = (currentTotalValue - totalChange) > 0
+        ? (totalChange / (currentTotalValue - totalChange)) * 100
         : 0;
 
-      // 銘柄別の前日比
-      const assetChanges = {};
-      if (latestSnapshot.assetBreakdown && previousSnapshot.assetBreakdown) {
-        for (const asset of portfolio) {
-          const assetKey = asset.symbol || asset.isinCd || asset.id;
-          
-          // 最新スナップショットの値を取得
-          let latestValue = 0;
-          if (latestSnapshot.assetBreakdown[assetKey]) {
-            if (typeof latestSnapshot.assetBreakdown[assetKey] === 'object') {
-              latestValue = latestSnapshot.assetBreakdown[assetKey].valueJPY || 0;
-            } else {
-              latestValue = latestSnapshot.assetBreakdown[assetKey] || 0;
-            }
-          }
-          
-          // 一つ前のスナップショットの値を取得
-          let previousValue = 0;
-          if (previousSnapshot.assetBreakdown[assetKey]) {
-            if (typeof previousSnapshot.assetBreakdown[assetKey] === 'object') {
-              previousValue = previousSnapshot.assetBreakdown[assetKey].valueJPY || 0;
-            } else {
-              previousValue = previousSnapshot.assetBreakdown[assetKey] || 0;
-            }
-          }
-          
-          const change = latestValue - previousValue;
-          const changePercent = previousValue > 0 ? (change / previousValue) * 100 : 0;
-
-          assetChanges[asset.id] = {
-            change,
-            changePercent
-          };
-        }
-      }
-
       return {
         totalChange,
         totalChangePercent,
         assetChanges,
-        previousDate: previousSnapshot.date,
-        latestDate: latestSnapshot.date,
-        isRealtime: false
+        previousDate: allMarketsClosed ? previousSnapshot.date : latestSnapshot.date,
+        latestDate: allMarketsClosed ? latestSnapshot.date : '現在',
+        isRealtime: !allMarketsClosed
       };
     }
 
-    // スナップショットが3つ以上ある場合
-    const latestSnapshot = snapshotData[snapshotData.length - 1];
-    const previousSnapshot = snapshotData[snapshotData.length - 2];
-    const twoDaysAgoSnapshot = snapshotData[snapshotData.length - 3];
-
-    // 全体の前日比
-    const totalChange = latestSnapshot.totalValueJPY - previousSnapshot.totalValueJPY;
-    const totalChangePercent = previousSnapshot.totalValueJPY > 0 
-      ? (totalChange / previousSnapshot.totalValueJPY) * 100 
-      : 0;
-
-    // 銘柄別の前日比
-    const assetChanges = {};
-    if (latestSnapshot.assetBreakdown && previousSnapshot.assetBreakdown && twoDaysAgoSnapshot.assetBreakdown) {
-      for (const asset of portfolio) {
-        const assetKey = asset.symbol || asset.isinCd || asset.id;
-        
-        // 最新スナップショットの値を取得
-        let latestValue = 0;
-        if (latestSnapshot.assetBreakdown[assetKey]) {
-          if (typeof latestSnapshot.assetBreakdown[assetKey] === 'object') {
-            latestValue = latestSnapshot.assetBreakdown[assetKey].valueJPY || 0;
-          } else {
-            latestValue = latestSnapshot.assetBreakdown[assetKey] || 0;
-          }
-        }
-        
-        // 一つ前のスナップショットの値を取得
-        let previousValue = 0;
-        if (previousSnapshot.assetBreakdown[assetKey]) {
-          if (typeof previousSnapshot.assetBreakdown[assetKey] === 'object') {
-            previousValue = previousSnapshot.assetBreakdown[assetKey].valueJPY || 0;
-          } else {
-            previousValue = previousSnapshot.assetBreakdown[assetKey] || 0;
-          }
-        }
-        
-        // 2つ前のスナップショットの値を取得
-        let twoDaysAgoValue = 0;
-        if (twoDaysAgoSnapshot.assetBreakdown[assetKey]) {
-          if (typeof twoDaysAgoSnapshot.assetBreakdown[assetKey] === 'object') {
-            twoDaysAgoValue = twoDaysAgoSnapshot.assetBreakdown[assetKey].valueJPY || 0;
-          } else {
-            twoDaysAgoValue = twoDaysAgoSnapshot.assetBreakdown[assetKey] || 0;
-          }
-        }
-        
-        // 🔥 投資信託は一つ前と2つ前を比較
-        let change, changePercent;
-        
-        if (asset.type === 'fund') {
-          // 投資信託: 一つ前と2つ前のスナップショット比較
-          change = previousValue - twoDaysAgoValue;
-          changePercent = twoDaysAgoValue > 0 ? (change / twoDaysAgoValue) * 100 : 0;
-        } else {
-          // その他: 最新と一つ前のスナップショット比較
-          change = latestValue - previousValue;
-          changePercent = previousValue > 0 ? (change / previousValue) * 100 : 0;
-        }
-
-        assetChanges[asset.id] = {
-          change,
-          changePercent
-        };
-      }
-    }
-
-    return {
-      totalChange,
-      totalChangePercent,
-      assetChanges,
-      previousDate: previousSnapshot.date,
-      latestDate: latestSnapshot.date,
-      isRealtime: false
-    };
+    // スナップショットが不足している場合
+    return null;
   }, [portfolio, exchangeRate, snapshotData]);
 
   // 合計計算

@@ -1,7 +1,7 @@
 // src/App.jsx (配当機能統合版)
 import React, { useState, useEffect, useRef } from 'react';
 import { loadPortfolio, savePortfolio, exportData, importData, getSellHistory, addDividend, updateDividend, deleteDividend } from './utils/storage';
-import { updateAllPrices, rebuildAllHistory, regenerateDailySnapshots } from './utils/priceAPI';
+import { updateAllPrices, rebuildAllHistory, regenerateDailySnapshots, generateTodaySnapshot } from './utils/priceAPI';
 import { getDailySnapshots } from './utils/database';
 import { getConsolidatedPortfolio, getTagAnalysis, getAssetsByTag, getAllUniqueTags } from './utils/portfolioUtils';
 import { usePortfolioHandlers } from './hooks/usePortfolioHandlers';
@@ -134,13 +134,16 @@ function App() {
       setPortfolio(result.portfolio);
       setExchangeRate(result.exchangeRate);
       savePortfolio(result.portfolio);
-      
+
+      // 価格更新後、今日のスナップショットを生成
+      await generateTodaySnapshot(result.portfolio, result.exchangeRate);
+
       if (result.errors) {
         addNotification(`価格更新完了\n\nエラー:\n${result.errors.join('\n')}`, 'warning');
       } else {
         addNotification('すべての価格を更新しました！', 'success');
       }
-      
+
       await loadSnapshots();
     } catch (error) {
       console.error('価格更新エラー:', error);

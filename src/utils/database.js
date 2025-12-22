@@ -175,6 +175,11 @@ export const setCache = async (key, data) => {
   });
 };
 
+export const clearCache = async () => {
+  await db.apiCache.clear();
+  console.log('✓ APIキャッシュをクリアしました');
+};
+
 export default db;
 
 // ===========================
