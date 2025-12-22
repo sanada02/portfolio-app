@@ -131,7 +131,7 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
   }, [filteredData, activeTab, selectedAssets, selectedTags]);
 
   // 最新の評価額と損益の計算（useMemoを早期リターンの前に）
-  const { totalValueJPY, totalValueUSD, change, changePercent, isPositive, initialValue, firstSnapshot, chartData, latestExchangeRate } = useMemo(() => {
+  const { totalValueJPY, totalValueUSD, change, changePercent, isPositive, initialValue, chartData, latestExchangeRate } = useMemo(() => {
     if (!data || data.length === 0 || viewFilteredData.length === 0) {
       return {
         totalValueJPY: 0,
@@ -140,7 +140,6 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
         changePercent: 0,
         isPositive: false,
         initialValue: 0,
-        firstSnapshot: null,
         chartData: [],
         latestExchangeRate: exchangeRate
       };
@@ -206,8 +205,10 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
     const initValue = firstSnap?.totalValueJPY || 0;
 
     // 期間損益を単価変動で計算（購入・売却の影響を除外）
+    // 全期間の場合: 購入単価 vs 現在単価（保有銘柄一覧と同じ）
+    // その他の期間: 期間開始時の単価 vs 現在の単価
     let calcChange = 0;
-    let totalInvestment = 0;
+    let periodStartValue = 0;
 
     if (portfolio && portfolio.length > 0) {
       // タブに応じてフィルタリング
@@ -221,37 +222,131 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
         assetsToCalculate = portfolio.filter(asset => asset.tags && asset.tags.some(tag => tagsToShow.includes(tag)));
       }
 
-      // 各資産の損益を計算（購入単価 × 数量 vs 現在単価 × 数量）
+      // 全期間かどうかを判定（selectedPeriodは直接参照できないので、データから判定）
+      const isAllPeriod = !firstSnap || !firstSnap.assetBreakdown;
+
+      // 各資産の損益を計算
       assetsToCalculate.forEach(asset => {
+        const assetKey = asset.symbol || asset.isinCd || asset.id;
         const currentPrice = asset.currentPrice || asset.purchasePrice;
-        const purchasePrice = asset.purchasePrice;
-        const quantity = asset.activeQuantity;
+        const currentPriceJPY = asset.currency === 'USD'
+          ? currentPrice * exchangeRate
+          : currentPrice;
+        const currentQuantity = asset.activeQuantity;
 
-        const currentValue = currentPrice * quantity;
-        const investmentValue = purchasePrice * quantity;
+        // 期間開始時の単価を取得
+        let startUnitPrice = 0;
 
-        if (asset.currency === 'USD') {
-          calcChange += (currentValue - investmentValue) * exchangeRate;
-          totalInvestment += investmentValue * exchangeRate;
+        if (isAllPeriod || !firstSnap.assetBreakdown[assetKey]) {
+          // 全期間の場合、または期間開始時に存在しない銘柄の場合は購入単価を使用
+          startUnitPrice = asset.currency === 'USD'
+            ? asset.purchasePrice * exchangeRate
+            : asset.purchasePrice;
         } else {
-          calcChange += (currentValue - investmentValue);
-          totalInvestment += investmentValue;
+          // 期間開始時のスナップショットから単価を取得
+          const startSnapshot = firstSnap.assetBreakdown[assetKey];
+          let startValue = 0;
+          let startQuantity = 0;
+
+          if (typeof startSnapshot === 'object') {
+            startValue = startSnapshot.valueJPY || 0;
+            startQuantity = startSnapshot.quantity || 0;
+          } else {
+            startValue = startSnapshot || 0;
+            startQuantity = 0;
+          }
+
+          startUnitPrice = startQuantity > 0 ? startValue / startQuantity : 0;
+        }
+
+        // 単価の差 × 現在の保有数量で損益を計算
+        if (currentQuantity > 0 && startUnitPrice > 0) {
+          calcChange += (currentPriceJPY - startUnitPrice) * currentQuantity;
+          periodStartValue += startUnitPrice * currentQuantity;
         }
       });
     }
 
-    const calcChangePercent = totalInvestment > 0 ? ((calcChange / totalInvestment) * 100).toFixed(2) : 0;
+    const calcChangePercent = periodStartValue > 0 ? ((calcChange / periodStartValue) * 100).toFixed(2) : 0;
     const calcIsPositive = calcChange >= 0;
 
     // 最新の為替レートをスナップショットから取得
     const snapshotExchangeRate = latestFilteredData?.exchangeRate || exchangeRate;
 
-    // グラフ用のデータに損益を追加
-    const calcChartData = viewFilteredData.map(item => ({
-      ...item,
-      profit: item.totalValueJPY - initValue,
-      exchangeRate: item.exchangeRate || null
-    }));
+    // グラフ用のデータに損益を追加（単価変動ベース）
+    // 全期間: 購入単価を基準、その他: 期間開始時の単価を基準
+    const calcChartData = viewFilteredData.map((item) => {
+      let profit = 0;
+
+      if (portfolio && portfolio.length > 0 && item.assetBreakdown) {
+        // タブに応じてフィルタリング
+        let assetsToCalculate = portfolio;
+
+        if (activeTab === 'byAsset') {
+          const assetsToShow = selectedAssets.length > 0 ? selectedAssets : portfolio.map(a => a.id);
+          assetsToCalculate = portfolio.filter(asset => assetsToShow.includes(asset.id));
+        } else if (activeTab === 'byTag') {
+          const tagsToShow = selectedTags.length > 0 ? selectedTags : Array.from(new Set(portfolio.flatMap(a => a.tags || [])));
+          assetsToCalculate = portfolio.filter(asset => asset.tags && asset.tags.some(tag => tagsToShow.includes(tag)));
+        }
+
+        // 全期間かどうかを判定
+        const isAllPeriod = !firstSnap || !firstSnap.assetBreakdown;
+
+        // 各資産の損益を計算
+        assetsToCalculate.forEach(asset => {
+          const assetKey = asset.symbol || asset.isinCd || asset.id;
+          const currentSnapshot = item.assetBreakdown[assetKey];
+
+          if (currentSnapshot) {
+            // この時点の単価と数量
+            let currentValue = 0;
+            let currentQuantity = 0;
+            if (typeof currentSnapshot === 'object') {
+              currentValue = currentSnapshot.valueJPY || 0;
+              currentQuantity = currentSnapshot.quantity || 0;
+            } else {
+              currentValue = currentSnapshot || 0;
+            }
+            const currentUnitPrice = currentQuantity > 0 ? currentValue / currentQuantity : 0;
+
+            // 基準単価を取得
+            let baseUnitPrice = 0;
+
+            if (isAllPeriod || !firstSnap.assetBreakdown[assetKey]) {
+              // 全期間の場合、または期間開始時に存在しない銘柄の場合は購入単価を使用
+              const purchasePrice = asset.purchasePrice;
+              baseUnitPrice = asset.currency === 'USD'
+                ? purchasePrice * (item.exchangeRate || exchangeRate)
+                : purchasePrice;
+            } else {
+              // 期間開始時のスナップショットから単価を取得
+              const startSnapshot = firstSnap.assetBreakdown[assetKey];
+              let startValue = 0;
+              let startQuantity = 0;
+              if (typeof startSnapshot === 'object') {
+                startValue = startSnapshot.valueJPY || 0;
+                startQuantity = startSnapshot.quantity || 0;
+              } else {
+                startValue = startSnapshot || 0;
+              }
+              baseUnitPrice = startQuantity > 0 ? startValue / startQuantity : 0;
+            }
+
+            // 単価の差 × この時点の数量で損益を計算
+            if (currentQuantity > 0 && baseUnitPrice > 0) {
+              profit += (currentUnitPrice - baseUnitPrice) * currentQuantity;
+            }
+          }
+        });
+      }
+
+      return {
+        ...item,
+        profit: profit,
+        exchangeRate: item.exchangeRate || null
+      };
+    });
 
     return {
       totalValueJPY: finalTotalJPY,
@@ -260,7 +355,6 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
       changePercent: calcChangePercent,
       isPositive: calcIsPositive,
       initialValue: initValue,
-      firstSnapshot: firstSnap,
       chartData: calcChartData,
       latestExchangeRate: snapshotExchangeRate
     };
