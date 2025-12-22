@@ -361,7 +361,7 @@ const PortfolioSummaryAndTable = ({ portfolio, exchangeRate, onEdit, onDelete, o
             boxShadow: '0 4px 12px rgba(79, 172, 254, 0.3)'
           }}>
             <div style={{ fontSize: '14px', marginBottom: '8px', opacity: 0.9 }}>
-              {previousDayComparison.isRealtime ? '変動' : '前日比'}
+              前日比
             </div>
             <div style={{ fontSize: '32px', fontWeight: 'bold' }}>
               {previousDayComparison.totalChange >= 0 ? '+' : ''}¥{Math.round(previousDayComparison.totalChange).toLocaleString()}
