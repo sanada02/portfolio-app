@@ -703,6 +703,14 @@ export const regenerateDailySnapshots = async (portfolio) => {
 export const generateTodaySnapshot = async (portfolio, exchangeRate) => {
   console.log('📸 今日のスナップショットを生成中...');
 
+  // 市場が開いている銘柄があるかチェック
+  const hasOpenMarket = portfolio.some(asset => asset.isMarketOpen === true);
+
+  if (hasOpenMarket) {
+    console.log('⚠ 市場が開場中のため、スナップショットは作成されません（市場終了後に再度価格更新してください）');
+    return { success: false, message: '市場開場中のため、スナップショットは作成されませんでした' };
+  }
+
   const today = new Date().toISOString().split('T')[0];
 
   // 売却履歴と配当データを取得

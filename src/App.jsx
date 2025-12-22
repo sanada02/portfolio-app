@@ -136,13 +136,27 @@ function App() {
       savePortfolio(result.portfolio);
 
       // 価格更新後、今日のスナップショットを生成
-      await generateTodaySnapshot(result.portfolio, result.exchangeRate);
+      const snapshotResult = await generateTodaySnapshot(result.portfolio, result.exchangeRate);
+
+      let notificationMessage = '';
+      let notificationType = 'success';
 
       if (result.errors) {
-        addNotification(`価格更新完了\n\nエラー:\n${result.errors.join('\n')}`, 'warning');
+        notificationMessage = `価格更新完了\n\nエラー:\n${result.errors.join('\n')}`;
+        notificationType = 'warning';
       } else {
-        addNotification('すべての価格を更新しました！', 'success');
+        notificationMessage = 'すべての価格を更新しました！';
       }
+
+      // スナップショット作成結果を通知に追加
+      if (snapshotResult && !snapshotResult.success) {
+        notificationMessage += '\n\n' + snapshotResult.message;
+        if (notificationType === 'success') {
+          notificationType = 'info';
+        }
+      }
+
+      addNotification(notificationMessage, notificationType);
 
       await loadSnapshots();
     } catch (error) {
