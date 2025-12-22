@@ -180,6 +180,27 @@ export const clearCache = async () => {
   console.log('✓ APIキャッシュをクリアしました');
 };
 
+// ===========================
+// 全データ削除
+// ===========================
+
+/**
+ * IndexedDBの全データを削除
+ */
+export const clearAllIndexedDB = async () => {
+  try {
+    await db.priceHistory.clear();
+    await db.dailySnapshots.clear();
+    await db.exchangeRates.clear();
+    await db.apiCache.clear();
+    console.log('✓ IndexedDBの全データを削除しました');
+    return true;
+  } catch (error) {
+    console.error('IndexedDB削除エラー:', error);
+    return false;
+  }
+};
+
 export default db;
 
 // ===========================

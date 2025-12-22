@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { loadPortfolio, savePortfolio, exportData, importData, getSellHistory, addDividend, updateDividend, deleteDividend } from './utils/storage';
 import { updateAllPrices, rebuildAllHistory, regenerateDailySnapshots, generateTodaySnapshot } from './utils/priceAPI';
-import { getDailySnapshots } from './utils/database';
+import { getDailySnapshots, clearAllIndexedDB } from './utils/database';
 import { getConsolidatedPortfolio, getTagAnalysis, getAssetsByTag, getAllUniqueTags } from './utils/portfolioUtils';
 import { usePortfolioHandlers } from './hooks/usePortfolioHandlers';
 import AddAssetModal from './components/AddAssetModal';
@@ -200,6 +200,61 @@ function App() {
     }
   };
 
+  // ========== Data Management ==========
+  const handleClearAllData = async () => {
+    if (!window.confirm(
+      '⚠️ すべてのデータを削除しますか？\n\n' +
+      '以下のデータが完全に削除されます：\n' +
+      '• ポートフォリオデータ（保有銘柄、購入記録）\n' +
+      '• 売却履歴\n' +
+      '• 配当データ\n' +
+      '• 価格履歴（IndexedDB）\n' +
+      '• 日次スナップショット\n' +
+      '• 為替レート履歴\n' +
+      '• APIキャッシュ\n\n' +
+      'この操作は取り消せません。'
+    )) {
+      return;
+    }
+
+    // 二重確認
+    if (!window.confirm(
+      '本当によろしいですか？\n\n' +
+      'すべてのデータが完全に削除されます。\n' +
+      '事前にバックアップを取得することをお勧めします。'
+    )) {
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+
+      // IndexedDBのデータを削除
+      const indexedDBSuccess = await clearAllIndexedDB();
+
+      // localStorageのデータを削除
+      localStorage.clear();
+
+      if (indexedDBSuccess) {
+        addNotification(
+          '✅ すべてのデータを削除しました\n\nページをリロードします...',
+          'success'
+        );
+
+        // 2秒後にリロード
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
+      } else {
+        throw new Error('IndexedDBの削除に失敗しました');
+      }
+    } catch (error) {
+      console.error('データ削除エラー:', error);
+      addNotification('データ削除中にエラーが発生しました: ' + error.message, 'error');
+      setIsLoading(false);
+    }
+  };
+
   // ========== Backup & Import ==========
   const handleExportBackup = () => {
     try {
@@ -369,6 +424,17 @@ function App() {
           </button>
           <button onClick={() => fileInputRef.current?.click()} disabled={isLoading}>
             📥 インポート
+          </button>
+          <button
+            onClick={handleClearAllData}
+            disabled={isLoading}
+            style={{
+              background: 'linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%)',
+              color: 'white',
+              border: 'none'
+            }}
+          >
+            🗑️ 全データ削除
           </button>
         </div>
       </header>
