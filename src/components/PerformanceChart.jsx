@@ -796,13 +796,16 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
       return chartData;
     }
 
+    // 一番最初のスナップショット日付を取得
+    const firstSnapshot = chartData[0];
+
     // 月ごとにグループ化
     const monthlyData = {};
-    
+
     chartData.forEach(item => {
       const date = new Date(item.date);
       const yearMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      
+
       // 各月の最後のデータを保持
       if (!monthlyData[yearMonth] || item.date > monthlyData[yearMonth].date) {
         monthlyData[yearMonth] = item;
@@ -810,9 +813,16 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
     });
 
     // 月次データを配列に変換してソート
-    return Object.values(monthlyData).sort((a, b) => 
+    let result = Object.values(monthlyData).sort((a, b) =>
       new Date(a.date).getTime() - new Date(b.date).getTime()
     );
+
+    // 最初のプロットが一番最初の購入日でない場合は、最初の購入日を追加
+    if (result.length > 0 && result[0].date !== firstSnapshot.date) {
+      result = [firstSnapshot, ...result];
+    }
+
+    return result;
   }, [chartData, selectedPeriod]);
 
   // 早期リターン（すべてのフックの後に）
