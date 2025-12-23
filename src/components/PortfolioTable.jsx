@@ -233,18 +233,32 @@ const PortfolioTable = ({ portfolio, exchangeRate, periodComparison, periodLabel
                   )}
                 </td>
                 <td>
-                  <span style={{
-                    background: '#f0f0f0',
-                    padding: '4px 8px',
-                    borderRadius: '4px',
-                    fontSize: '12px',
-                    fontWeight: '500'
-                  }}>
-                    {asset.type === 'stock' ? '株式' :
-                     asset.type === 'fund' ? '投資信託' :
-                     asset.type === 'etf' ? 'ETF' :
-                     asset.type === 'crypto' ? '仮想通貨' : 'その他'}
-                  </span>
+                  <div>
+                    <span style={{
+                      background: '#f0f0f0',
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      fontSize: '12px',
+                      fontWeight: '500'
+                    }}>
+                      {asset.type === 'stock' ? '株式' :
+                       asset.type === 'fund' ? '投資信託' :
+                       asset.type === 'etf' ? 'ETF' :
+                       asset.type === 'crypto' ? '仮想通貨' : 'その他'}
+                    </span>
+                    {(asset.symbol || asset.isinCd) && (
+                      <div style={{
+                        fontSize: '10px',
+                        color: '#999',
+                        marginTop: '4px',
+                        fontFamily: 'monospace'
+                      }}>
+                        {asset.symbol && <span>{asset.symbol}</span>}
+                        {asset.symbol && asset.isinCd && <span style={{ margin: '0 4px' }}>·</span>}
+                        {asset.isinCd && <span>{asset.isinCd}</span>}
+                      </div>
+                    )}
+                  </div>
                 </td>
                 <td style={{ textAlign: 'right' }}>{formatNumber(asset.activeQuantity)}</td>
                 <td style={{ textAlign: 'right', fontWeight: '500' }}>
