@@ -1,6 +1,6 @@
 // src/App.jsx (配当機能統合版)
 import React, { useState, useEffect, useRef } from 'react';
-import { loadPortfolio, savePortfolio, exportData, importData, getSellHistory, addDividend, updateDividend, deleteDividend } from './utils/storage';
+import { loadPortfolio, savePortfolio, exportData, importData, getSellHistory, addDividend, updateDividend, deleteDividend, getDividends } from './utils/storage';
 import { updateAllPrices, rebuildAllHistory, regenerateDailySnapshots, generateTodaySnapshot } from './utils/priceAPI';
 import { getDailySnapshots, clearAllIndexedDB } from './utils/database';
 import { getConsolidatedPortfolio, getTagAnalysis, getAssetsByTag, getAllUniqueTags } from './utils/portfolioUtils';
@@ -41,16 +41,20 @@ function App() {
   const [excludeCrypto, setExcludeCrypto] = useState(false);
   const [selectedTags, setSelectedTags] = useState([]);
   const [sellHistory, setSellHistory] = useState([]);
+  const [dividends, setDividends] = useState([]);
   const fileInputRef = useRef(null);
 
   // ========== Initialize ==========
   useEffect(() => {
     const loadedPortfolio = loadPortfolio();
     setPortfolio(loadedPortfolio);
-    
+
     const loadedSellHistory = getSellHistory();
     setSellHistory(loadedSellHistory);
-    
+
+    const loadedDividends = getDividends();
+    setDividends(loadedDividends);
+
     loadSnapshots();
   }, []);
 
@@ -92,6 +96,7 @@ function App() {
     if (result) {
       addNotification('配当を追加しました', 'success');
       setIsAddDividendModalOpen(false);
+      setDividends(getDividends());
       loadSnapshots();
     } else {
       addNotification('配当の追加に失敗しました', 'error');
@@ -110,6 +115,7 @@ function App() {
       addNotification('配当を更新しました', 'success');
       setIsEditDividendModalOpen(false);
       setSelectedDividend(null);
+      setDividends(getDividends());
       loadSnapshots();
     } else {
       addNotification('配当の更新に失敗しました', 'error');
@@ -120,6 +126,7 @@ function App() {
     const success = deleteDividend(dividendId);
     if (success) {
       addNotification('配当を削除しました', 'success');
+      setDividends(getDividends());
       loadSnapshots();
     } else {
       addNotification('配当の削除に失敗しました', 'error');
@@ -457,12 +464,13 @@ function App() {
         {/* Performance Chart */}
         <section className="performance-section">
           <h2>📈 パフォーマンス推移</h2>
-          <PerformanceChart 
-            data={snapshotData} 
+          <PerformanceChart
+            data={snapshotData}
             portfolio={activePortfolio}
             rawPortfolio={portfolio}
             exchangeRate={exchangeRate}
             sellHistory={sellHistory}
+            dividends={dividends}
           />
         </section>
 

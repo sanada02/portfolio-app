@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts';
 
-const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHistory = [] }) => {
+const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHistory = [], dividends = [] }) => {
   const [selectedPeriod, setSelectedPeriod] = useState('30d');
   const [showExchangeRate, setShowExchangeRate] = useState(false);
   const [showProfit, setShowProfit] = useState(false);
@@ -130,6 +130,51 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
       return true; // 全体タブの場合はすべて含める
     });
   }, [filteredData, activeTab, selectedAssets, selectedTags]);
+
+  // 期間配当を計算
+  const periodDividends = useMemo(() => {
+    if (!dividends || dividends.length === 0 || viewFilteredData.length === 0) {
+      return { totalAmount: 0, percentage: 0 };
+    }
+
+    const firstData = viewFilteredData[0];
+    const lastData = viewFilteredData[viewFilteredData.length - 1];
+
+    if (!firstData || !lastData) {
+      return { totalAmount: 0, percentage: 0 };
+    }
+
+    const startDate = new Date(firstData.date);
+    const endDate = new Date(lastData.date);
+
+    // タブに応じてフィルタリング
+    let filteredDividends = dividends;
+
+    if (activeTab === 'byAsset' && selectedAssets.length > 0) {
+      // 銘柄別: 選択された銘柄の配当のみ
+      filteredDividends = dividends.filter(d => selectedAssets.includes(d.assetId));
+    } else if (activeTab === 'byTag' && selectedTags.length > 0) {
+      // タグ別: 選択されたタグを持つ銘柄の配当のみ
+      const assetIdsWithSelectedTags = portfolio
+        .filter(asset => asset.tags && asset.tags.some(tag => selectedTags.includes(tag)))
+        .map(asset => asset.id);
+      filteredDividends = dividends.filter(d => assetIdsWithSelectedTags.includes(d.assetId));
+    }
+
+    // 期間内の配当を集計
+    const totalAmount = filteredDividends
+      .filter(d => {
+        const divDate = new Date(d.date);
+        return divDate >= startDate && divDate <= endDate;
+      })
+      .reduce((sum, d) => sum + d.amountJPY, 0);
+
+    // 期首評価額に対するパーセント
+    const initialVal = firstData.totalValueJPY || 0;
+    const percentage = initialVal > 0 ? (totalAmount / initialVal) * 100 : 0;
+
+    return { totalAmount, percentage };
+  }, [dividends, viewFilteredData, activeTab, selectedAssets, selectedTags, portfolio]);
 
   // 最新の評価額と損益の計算（useMemoを早期リターンの前に）
   const { totalValueJPY, totalValueUSD, change, changePercent, isPositive, initialValue, chartData, latestExchangeRate } = useMemo(() => {
@@ -1611,7 +1656,7 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
         </div>
 
         <div style={{
-          background: isPositive 
+          background: isPositive
             ? 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)'
             : 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
           color: 'white',
@@ -1622,20 +1667,34 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
             : '0 4px 12px rgba(250, 112, 154, 0.3)'
         }}>
           <div style={{ fontSize: '14px', marginBottom: '8px', opacity: 0.9 }}>期間損益</div>
-          <div style={{ 
-            fontSize: '28px', 
+          <div style={{
+            fontSize: '28px',
             fontWeight: 'bold',
             color: 'white'
           }}>
             {isPositive ? '+' : ''}¥{Math.round(change).toLocaleString()}
           </div>
-          <div style={{ 
-            fontSize: '16px', 
+          <div style={{
+            fontSize: '16px',
             marginTop: '4px',
             color: 'white'
           }}>
             ({isPositive ? '+' : ''}{changePercent}%)
           </div>
+          {periodDividends.totalAmount > 0 && (
+            <div style={{
+              fontSize: '12px',
+              marginTop: '10px',
+              paddingTop: '10px',
+              borderTop: '1px solid rgba(255, 255, 255, 0.3)',
+              opacity: 0.95
+            }}>
+              <div>期間配当: ¥{Math.round(periodDividends.totalAmount).toLocaleString()}</div>
+              <div style={{ fontSize: '11px', marginTop: '2px', opacity: 0.9 }}>
+                (期首評価額比: +{periodDividends.percentage.toFixed(2)}%)
+              </div>
+            </div>
+          )}
         </div>
 
         <div style={{
