@@ -1,9 +1,7 @@
 // src/utils/priceAPI.js (配当対応版 - regenerateDailySnapshotsを修正)
 import { getCache, setCache, clearCache, savePriceHistory, getPriceByDate, getClosestPrice, saveExchangeRate, getLatestExchangeRate, saveDailySnapshot } from './database';
 import { getSellHistory } from './storage';
-
-// プロキシサーバーのURL
-const PROXY_URL = 'http://localhost:3001';
+import { fetchYahooFinance, fetchFundData } from './tauriAPI';
 
 // ===========================
 // Yahoo Finance API（プロキシ経由）
@@ -21,15 +19,11 @@ export const getCurrentPrice = async (symbol) => {
   }
   
   try {
-    const url = `${PROXY_URL}/api/yahoo?symbol=${symbol}&interval=1d&range=1d`;
-    
-    const response = await fetch(url);
-    
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-    
-    const data = await response.json();
+    const data = await fetchYahooFinance({
+      symbol,
+      interval: '1d',
+      range: '1d'
+    });
     
     if (data.chart.error) {
       throw new Error(data.chart.error.description);
@@ -88,19 +82,16 @@ export const getHistoricalPrices = async (symbol, days = 30) => {
     
     // データがない場合は全期間取得
     console.log(`⏳ ${symbol}: 履歴データを取得中（${days}日分）...`);
-    
+
     const endDate = Math.floor(Date.now() / 1000);
     const startDate = Math.floor((Date.now() - days * 24 * 60 * 60 * 1000) / 1000);
-    
-    const url = `${PROXY_URL}/api/yahoo?symbol=${symbol}&period1=${startDate}&period2=${endDate}&interval=1d`;
-    
-    const response = await fetch(url);
-    
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-    
-    const data = await response.json();
+
+    const data = await fetchYahooFinance({
+      symbol,
+      period1: startDate.toString(),
+      period2: endDate.toString(),
+      interval: '1d'
+    });
     
     if (data.chart.error) {
       throw new Error(data.chart.error.description);
@@ -164,15 +155,10 @@ export const getFundPrice = async (isinCd, associFundCd) => {
   }
   
   try {
-    const url = `${PROXY_URL}/api/fund?isinCd=${isinCd}&associFundCd=${associFundCd}`;
-    
-    const response = await fetch(url);
-    
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-    
-    const csvText = await response.text();
+    const csvText = await fetchFundData({
+      isinCd,
+      associFundCd
+    });
     
     console.log('CSV生データ（最初の3行）:', csvText.split('\n').slice(0, 3).join('\n'));
     
@@ -302,16 +288,13 @@ export const getExchangeRateHistory = async (startDate, endDate = null) => {
     const period2 = Math.floor(end.getTime() / 1000);
     
     console.log(`⏳ 為替レート履歴を取得中（${startDate} ～ ${end.toISOString().split('T')[0]}）...`);
-    
-    const url = `${PROXY_URL}/api/yahoo?symbol=USDJPY=X&period1=${period1}&period2=${period2}&interval=1d`;
-    
-    const response = await fetch(url);
-    
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-    
-    const data = await response.json();
+
+    const data = await fetchYahooFinance({
+      symbol: 'USDJPY=X',
+      period1: period1.toString(),
+      period2: period2.toString(),
+      interval: '1d'
+    });
     
     if (data.chart.error) {
       throw new Error(data.chart.error.description);
@@ -354,16 +337,13 @@ export const getFullHistoricalPrices = async (symbol, startDate, endDate = null)
     const period2 = Math.floor(end.getTime() / 1000);
     
     console.log(`⏳ ${symbol}: 全履歴データを取得中（${startDate} ～ ${end.toISOString().split('T')[0]}）...`);
-    
-    const url = `${PROXY_URL}/api/yahoo?symbol=${symbol}&period1=${period1}&period2=${period2}&interval=1d`;
-    
-    const response = await fetch(url);
-    
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-    
-    const data = await response.json();
+
+    const data = await fetchYahooFinance({
+      symbol,
+      period1: period1.toString(),
+      period2: period2.toString(),
+      interval: '1d'
+    });
     
     if (data.chart.error) {
       throw new Error(data.chart.error.description);

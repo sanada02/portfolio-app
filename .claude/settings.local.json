@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(npx tauri init)",
+      "Bash(mkdir:*)",
+      "Bash(curl:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm run tauri:build:*)",
+      "Bash(ls:*)"
+    ]
+  }
+}
