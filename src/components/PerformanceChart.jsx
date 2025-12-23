@@ -1646,7 +1646,7 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
               })()}
             </>
           )}
-          {activeTab === 'total' && showProfit && (
+          {showProfit && (
             <Line
               yAxisId="left"
               type="linear"
