@@ -834,15 +834,43 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
       
       // その年の売買日を取得
       const startDate = new Date(yearData.startDate);
-      const endDate = isLatestYear 
+      const endDate = isLatestYear
         ? new Date(chartData[chartData.length - 1].date) // 最後のスナップショットの日付
         : new Date(yearData.endDate);
-      
+
       const yearTradeDates = getTradeDates.filter(tradeDate => {
         const date = new Date(tradeDate);
         const tradeYear = date.getFullYear();
         return tradeYear === year;
       });
+
+      // その年の配当を集計
+      let yearDividends = 0;
+      let yearDividendPercent = 0;
+      if (dividends && dividends.length > 0) {
+        // タブに応じてフィルタリング
+        let filteredDividends = dividends;
+
+        if (activeTab === 'byAsset' && selectedAssets.length > 0) {
+          filteredDividends = dividends.filter(d => selectedAssets.includes(d.assetId));
+        } else if (activeTab === 'byTag' && selectedTags.length > 0) {
+          const assetIdsWithSelectedTags = portfolio
+            .filter(asset => asset.tags && asset.tags.some(tag => selectedTags.includes(tag)))
+            .map(asset => asset.id);
+          filteredDividends = dividends.filter(d => assetIdsWithSelectedTags.includes(d.assetId));
+        }
+
+        // その年の配当を集計
+        yearDividends = filteredDividends
+          .filter(d => {
+            const divDate = new Date(d.date);
+            return divDate.getFullYear() === year;
+          })
+          .reduce((sum, d) => sum + d.amountJPY, 0);
+
+        // 期首評価額に対するパーセント
+        yearDividendPercent = startValue > 0 ? (yearDividends / startValue) * 100 : 0;
+      }
       
       // 期首（1月1日）の売買を除外
       const significantTradeDates = yearTradeDates.filter(tradeDate => {
@@ -951,6 +979,8 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
         endValue,
         profit,
         profitPercent,
+        dividends: yearDividends,
+        dividendPercent: yearDividendPercent,
         pseudoCagr,
         realCagr,
         displayCagr,
@@ -963,7 +993,7 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
     });
     
     return results;
-  }, [chartData, selectedPeriod, getTradeDates, calculatePseudoCAGR, totalValueJPY]);
+  }, [chartData, selectedPeriod, getTradeDates, calculatePseudoCAGR, totalValueJPY, dividends, activeTab, selectedAssets, selectedTags, portfolio]);
 
   // 全期間表示時は月次データに変換
   const displayData = useMemo(() => {
@@ -1981,13 +2011,14 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
               fontSize: '13px'
             }}>
               <thead>
-                <tr style={{ 
+                <tr style={{
                   background: '#f8f9fa',
                   borderBottom: '2px solid #dee2e6'
                 }}>
                   <th style={{ padding: '12px 8px', textAlign: 'left', fontWeight: '600' }}>年</th>
                   <th style={{ padding: '12px 8px', textAlign: 'right', fontWeight: '600' }}>期末評価額</th>
                   <th style={{ padding: '12px 8px', textAlign: 'right', fontWeight: '600' }}>期間損益</th>
+                  <th style={{ padding: '12px 8px', textAlign: 'right', fontWeight: '600' }}>配当</th>
                   <th style={{ padding: '12px 8px', textAlign: 'right', fontWeight: '600' }}>CAGR</th>
                   <th style={{ padding: '12px 8px', textAlign: 'right', fontWeight: '600' }}>MDD</th>
                   <th style={{ padding: '12px 8px', textAlign: 'right', fontWeight: '600' }}>CAGR/MDD</th>
@@ -2018,8 +2049,8 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
                     <td style={{ padding: '12px 8px', textAlign: 'right' }}>
                       ¥{Math.round(data.endValue).toLocaleString()}
                     </td>
-                    <td style={{ 
-                      padding: '12px 8px', 
+                    <td style={{
+                      padding: '12px 8px',
                       textAlign: 'right',
                       color: data.profit >= 0 ? '#10b981' : '#ef4444',
                       fontWeight: '500'
@@ -2029,8 +2060,25 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
                         ({data.profitPercent >= 0 ? '+' : ''}{data.profitPercent.toFixed(2)}%)
                       </div>
                     </td>
-                    <td style={{ 
-                      padding: '12px 8px', 
+                    <td style={{
+                      padding: '12px 8px',
+                      textAlign: 'right',
+                      color: data.dividends > 0 ? '#10b981' : '#6b7280',
+                      fontWeight: '500'
+                    }}>
+                      {data.dividends > 0 ? (
+                        <>
+                          ¥{Math.round(data.dividends).toLocaleString()}
+                          <div style={{ fontSize: '11px', marginTop: '2px', color: '#6b7280' }}>
+                            (+{data.dividendPercent.toFixed(2)}%)
+                          </div>
+                        </>
+                      ) : (
+                        <span style={{ color: '#9ca3af' }}>-</span>
+                      )}
+                    </td>
+                    <td style={{
+                      padding: '12px 8px',
                       textAlign: 'right',
                       color: data.displayCagr >= 0 ? '#10b981' : '#ef4444',
                       fontWeight: '500'
