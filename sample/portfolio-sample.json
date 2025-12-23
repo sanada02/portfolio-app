@@ -1,0 +1,376 @@
+{
+  "portfolio": [
+    {
+      "id": "1765804035412",
+      "type": "crypto",
+      "symbol": "BTC-JPY",
+      "name": "Bitcoin",
+      "quantity": 0.62,
+      "purchasePrice": 6232673,
+      "currency": "JPY",
+      "purchaseDate": "2024-01-01",
+      "tags": [
+        "仮想通貨"
+      ],
+      "exchangeRate": null,
+      "isMarketOpen": false,
+      "currentPrice": 14166306
+    },
+    {
+      "id": "1765804165004",
+      "type": "stock",
+      "symbol": "AAPL",
+      "name": "Apple Inc.",
+      "quantity": 176,
+      "purchasePrice": 246.86283631758258,
+      "currentPrice": 273.67,
+      "currency": "USD",
+      "purchaseDate": "2025-01-15",
+      "tags": [
+        "個別株",
+        "米国株"
+      ],
+      "exchangeRate": 157.26,
+      "assetIds": [
+        "1765804165004",
+        "1765805466490"
+      ],
+      "originalQuantity": 176,
+      "isConsolidated": true,
+      "activeQuantity": 175,
+      "displayQuantity": 176,
+      "soldQuantity": 1,
+      "applyTagsToAll": true,
+      "isinCd": "",
+      "associFundCd": "",
+      "isMarketOpen": false
+    },
+    {
+      "id": "1765805466490",
+      "type": "stock",
+      "symbol": "AAPL",
+      "name": "Apple Inc.",
+      "quantity": 54,
+      "purchasePrice": 277.54998779296875,
+      "currentPrice": 273.67,
+      "currency": "USD",
+      "purchaseDate": "2025-11-27",
+      "tags": [
+        "個別株",
+        "米国株"
+      ],
+      "exchangeRate": 157.26,
+      "isinCd": "",
+      "associFundCd": "",
+      "isMarketOpen": false
+    },
+    {
+      "id": "1765842060525",
+      "type": "stock",
+      "symbol": "7201.T",
+      "name": "日産自動車",
+      "quantity": 1206,
+      "purchasePrice": 543.9634533782504,
+      "currentPrice": 401,
+      "currency": "JPY",
+      "purchaseDate": "2024-06-03",
+      "tags": [
+        "個別株",
+        "日本株",
+        "自動車"
+      ],
+      "exchangeRate": null,
+      "assetIds": [
+        "1765842060525",
+        "1765842093105"
+      ],
+      "originalQuantity": 1206,
+      "isConsolidated": true,
+      "activeQuantity": 1100,
+      "displayQuantity": 1206,
+      "soldQuantity": 106,
+      "applyTagsToAll": true,
+      "isinCd": "",
+      "associFundCd": "",
+      "isMarketOpen": false
+    },
+    {
+      "id": "1765842093105",
+      "type": "stock",
+      "symbol": "7201.T",
+      "name": "日産自動車",
+      "quantity": 153,
+      "purchasePrice": 368.8999938964844,
+      "currentPrice": 401,
+      "currency": "JPY",
+      "purchaseDate": "2025-06-01",
+      "tags": [
+        "個別株",
+        "日本株",
+        "自動車"
+      ],
+      "exchangeRate": null,
+      "isinCd": "",
+      "associFundCd": "",
+      "isMarketOpen": false
+    },
+    {
+      "id": "1765845158517",
+      "type": "fund",
+      "symbol": "",
+      "name": "ｅＭＡＸＩＳ Ｓ＆Ｐ５００インデックス ",
+      "quantity": 102,
+      "purchasePrice": 25536,
+      "currentPrice": 29059,
+      "currency": "JPY",
+      "purchaseDate": "2025-01-30",
+      "tags": [
+        "投資信託",
+        "米国株"
+      ],
+      "isinCd": "JP90C000L110",
+      "associFundCd": "0331220C",
+      "exchangeRate": null,
+      "marketState": "CLOSED",
+      "isMarketOpen": false
+    },
+    {
+      "id": "1765845202653",
+      "type": "etf",
+      "symbol": "1542.T",
+      "name": "純銀上場信託",
+      "quantity": 1023,
+      "purchasePrice": 14225,
+      "currentPrice": 32960,
+      "currency": "JPY",
+      "purchaseDate": "2025-01-16",
+      "tags": [
+        "銀",
+        "貴金属"
+      ],
+      "exchangeRate": null,
+      "isinCd": "",
+      "associFundCd": "",
+      "isMarketOpen": false
+    },
+    {
+      "id": "1765845272939",
+      "type": "crypto",
+      "symbol": "ETH-JPY",
+      "name": "Ethereum",
+      "quantity": 135,
+      "purchasePrice": 331948.75,
+      "currency": "JPY",
+      "purchaseDate": "2024-01-01",
+      "tags": [
+        "仮想通貨"
+      ],
+      "exchangeRate": null,
+      "isinCd": "",
+      "associFundCd": "",
+      "isMarketOpen": false,
+      "currentPrice": 481710.4
+    },
+    {
+      "id": "1765888706357",
+      "type": "etf",
+      "symbol": "GLDM",
+      "name": "SPDR Gold MiniShares Trust",
+      "quantity": 1056,
+      "purchasePrice": 54.34000015258789,
+      "currentPrice": 85.9,
+      "currency": "USD",
+      "purchaseDate": "2025-01-22",
+      "tags": [
+        "金",
+        "貴金属"
+      ],
+      "isinCd": "",
+      "associFundCd": "",
+      "exchangeRate": 157.26,
+      "isMarketOpen": false
+    },
+    {
+      "id": "1765888758964",
+      "type": "etf",
+      "symbol": "1540.T",
+      "name": "純金上場信託",
+      "quantity": 58,
+      "purchasePrice": 13415,
+      "currentPrice": 21210,
+      "currency": "JPY",
+      "purchaseDate": "2025-02-12",
+      "tags": [
+        "金",
+        "貴金属"
+      ],
+      "exchangeRate": null,
+      "isMarketOpen": false
+    },
+    {
+      "id": "1765888876373",
+      "type": "stock",
+      "symbol": "7203.T",
+      "name": "トヨタ自動車",
+      "quantity": 50,
+      "purchasePrice": 2769,
+      "currentPrice": 3455,
+      "currency": "JPY",
+      "purchaseDate": "2025-06-01",
+      "tags": [
+        "自動車",
+        "日本株",
+        "個別株"
+      ],
+      "exchangeRate": null,
+      "isMarketOpen": false
+    },
+    {
+      "id": "1765891637489",
+      "type": "fund",
+      "symbol": "",
+      "name": "先進国好配当株式ファンド（３ヵ月決算型） ",
+      "quantity": 195,
+      "purchasePrice": 10808,
+      "currentPrice": 10537,
+      "currency": "JPY",
+      "purchaseDate": "2025-08-02",
+      "tags": [
+        "投資信託"
+      ],
+      "isinCd": "JP90C000CTF9",
+      "associFundCd": "03313162",
+      "exchangeRate": null,
+      "marketState": "CLOSED",
+      "isMarketOpen": false
+    }
+  ],
+  "sellHistory": [
+    {
+      "id": "1765805346560",
+      "timestamp": "2025-12-15T13:29:06.560Z",
+      "originalAssetId": "1765805244890",
+      "assetName": "Bitcoin",
+      "symbol": "BTC-JPY",
+      "quantity": 0.1,
+      "purchasePrice": 12536338,
+      "sellPrice": 12536338,
+      "sellDate": "2025-12-05",
+      "currency": "JPY",
+      "profit": 0
+    },
+    {
+      "id": "1765805786263",
+      "timestamp": "2025-12-15T13:36:26.263Z",
+      "originalAssetId": "1765804165004",
+      "assetName": "Apple Inc.",
+      "symbol": "AAPL",
+      "quantity": 1,
+      "purchasePrice": 233.27999877929688,
+      "sellPrice": 245,
+      "sellDate": "2025-11-01",
+      "currency": "USD",
+      "profit": 11.720001220703125
+    },
+    {
+      "id": "1765842125456",
+      "timestamp": "2025-12-15T23:42:05.456Z",
+      "originalAssetId": "1765842060525",
+      "assetName": "日産自動車",
+      "symbol": "7201.T",
+      "quantity": 106,
+      "purchasePrice": 543.9634533782504,
+      "sellPrice": 411.3999938964844,
+      "sellDate": "2025-12-03",
+      "currency": "JPY",
+      "profit": -14051.726705067198
+    },
+    {
+      "id": "1765845933037",
+      "timestamp": "2025-12-16T00:45:33.037Z",
+      "originalAssetId": "1765804035412",
+      "assetName": "Bitcoin",
+      "symbol": "BTC-JPY",
+      "quantity": 0.58,
+      "purchasePrice": 6232673,
+      "sellPrice": 13344956,
+      "sellDate": "2025-10-30",
+      "currency": "JPY",
+      "profit": 4125124.1399999997
+    },
+    {
+      "id": "1765891752994_z6fgf2j1q",
+      "timestamp": "2025-12-16T13:29:12.994Z",
+      "originalAssetId": "1765845158517",
+      "assetName": "ｅＭＡＸＩＳ Ｓ＆Ｐ５００インデックス ",
+      "symbol": "JP90C000L110",
+      "quantity": 10,
+      "purchasePrice": 25536,
+      "sellPrice": 29312,
+      "sellDate": "2025-12-01",
+      "currency": "JPY",
+      "profit": 37760
+    },
+    {
+      "id": "1765987990074_0_3bap8xfet",
+      "timestamp": "2025-12-17T16:13:10.074Z",
+      "originalAssetId": "1765845272939",
+      "assetName": "Ethereum",
+      "symbol": "ETH-JPY",
+      "quantity": 85,
+      "purchasePrice": 331948.75,
+      "sellPrice": 453427.38,
+      "sellDate": "2025-11-28",
+      "currency": "JPY",
+      "profit": 10325683.55
+    }
+  ],
+  "dividends": [
+    {
+      "id": "1766022196609_2_asyakow7z",
+      "assetId": "1765842060525",
+      "date": "2024-09-30",
+      "amountJPY": 3456,
+      "createdAt": "2025-12-18T01:43:16.609Z"
+    },
+    {
+      "id": "1766022210161_3_7f01ri394",
+      "assetId": "1765842060525",
+      "date": "2025-03-05",
+      "amountJPY": 9850,
+      "createdAt": "2025-12-18T01:43:30.161Z"
+    },
+    {
+      "id": "1766022138604_1_zfgaqppn5",
+      "assetId": "1765804165004",
+      "date": "2025-06-18",
+      "amountJPY": 10951,
+      "createdAt": "2025-12-18T01:42:18.604Z",
+      "updatedAt": "2025-12-18T01:44:49.767Z"
+    },
+    {
+      "id": "1766022220415_4_9f95dwe6f",
+      "assetId": "1765842060525",
+      "date": "2025-09-03",
+      "amountJPY": 2351,
+      "createdAt": "2025-12-18T01:43:40.415Z"
+    },
+    {
+      "id": "1766022260234_5_nak6txfet",
+      "assetId": "1765888876373",
+      "date": "2025-09-25",
+      "amountJPY": 1025,
+      "createdAt": "2025-12-18T01:44:20.234Z"
+    },
+    {
+      "id": "1766022092684_0_0chozzbcw",
+      "assetId": "1765804165004",
+      "date": "2025-12-05",
+      "amountJPY": 26513,
+      "createdAt": "2025-12-18T01:41:32.684Z",
+      "updatedAt": "2025-12-18T01:45:06.046Z"
+    }
+  ],
+  "exportDate": "2025-12-22T13:30:34.151Z",
+  "version": "1.1.0"
+}
