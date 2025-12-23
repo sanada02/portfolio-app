@@ -10,6 +10,7 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
   const [activeTab, setActiveTab] = useState('total');  // ← この行が必要
   const [selectedAssets, setSelectedAssets] = useState([]);  // ← この行が必要
   const [selectedTags, setSelectedTags] = useState([]);  // ← この行が必要
+  const [showPercentage, setShowPercentage] = useState(false);  // %表示モード
   
   // getTradeDatesで sellHistory の代わりに loadedSellHistory を使用
 
@@ -921,38 +922,158 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
 
   // 全期間表示時は月次データに変換
   const displayData = useMemo(() => {
-    if (selectedPeriod !== 'all' || chartData.length === 0) {
-      return chartData;
-    }
+    let baseData = chartData;
 
-    // 一番最初のスナップショット日付を取得
-    const firstSnapshot = chartData[0];
+    if (selectedPeriod === 'all' && chartData.length > 0) {
+      // 一番最初のスナップショット日付を取得
+      const firstSnapshot = chartData[0];
 
-    // 月ごとにグループ化
-    const monthlyData = {};
+      // 月ごとにグループ化
+      const monthlyData = {};
 
-    chartData.forEach(item => {
-      const date = new Date(item.date);
-      const yearMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      chartData.forEach(item => {
+        const date = new Date(item.date);
+        const yearMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 
-      // 各月の最後のデータを保持
-      if (!monthlyData[yearMonth] || item.date > monthlyData[yearMonth].date) {
-        monthlyData[yearMonth] = item;
+        // 各月の最後のデータを保持
+        if (!monthlyData[yearMonth] || item.date > monthlyData[yearMonth].date) {
+          monthlyData[yearMonth] = item;
+        }
+      });
+
+      // 月次データを配列に変換してソート
+      let result = Object.values(monthlyData).sort((a, b) =>
+        new Date(a.date).getTime() - new Date(b.date).getTime()
+      );
+
+      // 最初のプロットが一番最初の購入日でない場合は、最初の購入日を追加
+      if (result.length > 0 && result[0].date !== firstSnapshot.date) {
+        result = [firstSnapshot, ...result];
       }
-    });
 
-    // 月次データを配列に変換してソート
-    let result = Object.values(monthlyData).sort((a, b) =>
-      new Date(a.date).getTime() - new Date(b.date).getTime()
-    );
-
-    // 最初のプロットが一番最初の購入日でない場合は、最初の購入日を追加
-    if (result.length > 0 && result[0].date !== firstSnapshot.date) {
-      result = [firstSnapshot, ...result];
+      baseData = result;
     }
 
-    return result;
-  }, [chartData, selectedPeriod]);
+    // %表示モードの場合、各データポイントを%に変換
+    if (!showPercentage || baseData.length === 0) {
+      return baseData;
+    }
+
+    // 期間の始まりの評価額を取得（基準値）
+    const firstData = baseData[0];
+
+    // 全体タブの場合
+    if (activeTab === 'total') {
+      const baseValue = firstData.totalValueJPY;
+      if (baseValue === 0) return baseData;
+
+      return baseData.map(item => ({
+        ...item,
+        totalValueJPY_pct: ((item.totalValueJPY - baseValue) / baseValue) * 100,
+        profit_pct: item.profit !== undefined && baseValue > 0
+          ? (item.profit / baseValue) * 100
+          : undefined
+      }));
+    }
+
+    // 銘柄別タブの場合
+    if (activeTab === 'byAsset') {
+      // 各銘柄の開始時評価額を取得
+      const baseAssetValues = {};
+      if (firstData.assetValues) {
+        Object.entries(firstData.assetValues).forEach(([assetId, value]) => {
+          baseAssetValues[assetId] = value;
+        });
+      }
+
+      // 選択された銘柄で開始時に存在しないものは、最初に登場した時点を基準にする
+      const assetsToShow = selectedAssets.length > 0 ? selectedAssets : portfolio.map(a => a.id);
+      assetsToShow.forEach(assetId => {
+        if (!baseAssetValues[assetId]) {
+          // この銘柄が最初に登場するポイントを探す
+          for (const item of baseData) {
+            if (item.assetValues && item.assetValues[assetId] && item.assetValues[assetId] > 0) {
+              baseAssetValues[assetId] = item.assetValues[assetId];
+              break;
+            }
+          }
+        }
+      });
+
+      return baseData.map(item => {
+        const assetValues_pct = {};
+        if (item.assetValues) {
+          Object.entries(item.assetValues).forEach(([assetId, value]) => {
+            const baseValue = baseAssetValues[assetId];
+            if (baseValue && baseValue > 0) {
+              assetValues_pct[assetId] = ((value - baseValue) / baseValue) * 100;
+            } else {
+              assetValues_pct[assetId] = 0;
+            }
+          });
+        }
+
+        const totalBase = firstData.totalValueJPY || 0;
+        return {
+          ...item,
+          assetValues_pct,
+          profit_pct: item.profit !== undefined && totalBase > 0
+            ? (item.profit / totalBase) * 100
+            : undefined
+        };
+      });
+    }
+
+    // タグ別タブの場合
+    if (activeTab === 'byTag') {
+      // 各タグの開始時評価額を取得
+      const baseTagValues = {};
+      if (firstData.tagValues) {
+        Object.entries(firstData.tagValues).forEach(([tag, value]) => {
+          baseTagValues[tag] = value;
+        });
+      }
+
+      // 選択されたタグで開始時に存在しないものは、最初に登場した時点を基準にする
+      const allTags = Array.from(new Set(portfolio.flatMap(a => a.tags || [])));
+      const tagsToShow = selectedTags.length > 0 ? selectedTags : allTags;
+      tagsToShow.forEach(tag => {
+        if (!baseTagValues[tag]) {
+          for (const item of baseData) {
+            if (item.tagValues && item.tagValues[tag] && item.tagValues[tag] > 0) {
+              baseTagValues[tag] = item.tagValues[tag];
+              break;
+            }
+          }
+        }
+      });
+
+      return baseData.map(item => {
+        const tagValues_pct = {};
+        if (item.tagValues) {
+          Object.entries(item.tagValues).forEach(([tag, value]) => {
+            const baseValue = baseTagValues[tag];
+            if (baseValue && baseValue > 0) {
+              tagValues_pct[tag] = ((value - baseValue) / baseValue) * 100;
+            } else {
+              tagValues_pct[tag] = 0;
+            }
+          });
+        }
+
+        const totalBase = firstData.totalValueJPY || 0;
+        return {
+          ...item,
+          tagValues_pct,
+          profit_pct: item.profit !== undefined && totalBase > 0
+            ? (item.profit / totalBase) * 100
+            : undefined
+        };
+      });
+    }
+
+    return baseData;
+  }, [chartData, selectedPeriod, showPercentage, activeTab, selectedAssets, selectedTags, portfolio]);
 
   // 早期リターン（すべてのフックの後に）
   if (!data || data.length === 0) {
@@ -1006,55 +1127,86 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
           <p style={{ fontWeight: 'bold', marginBottom: '8px', color: '#333' }}>
             {new Date(data.date).toLocaleDateString('ja-JP')}
           </p>
-          
+
           {activeTab === 'total' && (
             <>
-              <p style={{ color: '#667eea', marginBottom: '4px' }}>
-                評価額: ¥{Math.round(data.totalValueJPY).toLocaleString()}
-              </p>
-              {data.totalValueUSD > 0 && (
+              {showPercentage && data.totalValueJPY_pct !== undefined ? (
+                <p style={{ color: '#667eea', marginBottom: '4px' }}>
+                  評価額: {data.totalValueJPY_pct >= 0 ? '+' : ''}{data.totalValueJPY_pct.toFixed(2)}%
+                </p>
+              ) : (
+                <p style={{ color: '#667eea', marginBottom: '4px' }}>
+                  評価額: ¥{Math.round(data.totalValueJPY).toLocaleString()}
+                </p>
+              )}
+              {!showPercentage && data.totalValueUSD > 0 && (
                 <p style={{ color: '#764ba2', fontSize: '13px', marginBottom: '4px' }}>
                   USD: ${Math.round(data.totalValueUSD).toLocaleString()}
                 </p>
               )}
             </>
           )}
-          
-          {activeTab === 'byAsset' && data.assetValues && (
+
+          {activeTab === 'byAsset' && (
             <>
               <p style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '6px', color: '#666' }}>
-                銘柄別評価額:
+                銘柄別{showPercentage ? '騰落率' : '評価額'}:
               </p>
-              {Object.entries(data.assetValues).map(([assetId, value]) => {
-                const asset = portfolio.find(a => a.id === assetId);
-                return asset ? (
-                  <p key={assetId} style={{ fontSize: '13px', marginBottom: '3px' }}>
-                    {asset.name}: ¥{Math.round(value).toLocaleString()}
+              {showPercentage && data.assetValues_pct ? (
+                Object.entries(data.assetValues_pct).map(([assetId, pct]) => {
+                  const asset = portfolio.find(a => a.id === assetId);
+                  return asset ? (
+                    <p key={assetId} style={{ fontSize: '13px', marginBottom: '3px' }}>
+                      {asset.name}: {pct >= 0 ? '+' : ''}{pct.toFixed(2)}%
+                    </p>
+                  ) : null;
+                })
+              ) : data.assetValues ? (
+                Object.entries(data.assetValues).map(([assetId, value]) => {
+                  const asset = portfolio.find(a => a.id === assetId);
+                  return asset ? (
+                    <p key={assetId} style={{ fontSize: '13px', marginBottom: '3px' }}>
+                      {asset.name}: ¥{Math.round(value).toLocaleString()}
+                    </p>
+                  ) : null;
+                })
+              ) : null}
+            </>
+          )}
+
+          {activeTab === 'byTag' && (
+            <>
+              <p style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '6px', color: '#666' }}>
+                タグ別{showPercentage ? '騰落率' : '評価額'}:
+              </p>
+              {showPercentage && data.tagValues_pct ? (
+                Object.entries(data.tagValues_pct).map(([tag, pct]) => (
+                  <p key={tag} style={{ fontSize: '13px', marginBottom: '3px' }}>
+                    {tag}: {pct >= 0 ? '+' : ''}{pct.toFixed(2)}%
                   </p>
-                ) : null;
-              })}
+                ))
+              ) : data.tagValues ? (
+                Object.entries(data.tagValues).map(([tag, value]) => (
+                  <p key={tag} style={{ fontSize: '13px', marginBottom: '3px' }}>
+                    {tag}: ¥{Math.round(value).toLocaleString()}
+                  </p>
+                ))
+              ) : null}
             </>
           )}
-          
-          {activeTab === 'byTag' && data.tagValues && (
-            <>
-              <p style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '6px', color: '#666' }}>
-                タグ別評価額:
+
+          {showProfit && (
+            showPercentage && data.profit_pct !== undefined ? (
+              <p style={{ color: data.profit_pct >= 0 ? '#10b981' : '#ef4444', fontSize: '13px', marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #eee' }}>
+                損益: {data.profit_pct >= 0 ? '+' : ''}{data.profit_pct.toFixed(2)}%
               </p>
-              {Object.entries(data.tagValues).map(([tag, value]) => (
-                <p key={tag} style={{ fontSize: '13px', marginBottom: '3px' }}>
-                  {tag}: ¥{Math.round(value).toLocaleString()}
-                </p>
-              ))}
-            </>
+            ) : data.profit !== undefined ? (
+              <p style={{ color: data.profit >= 0 ? '#10b981' : '#ef4444', fontSize: '13px', marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #eee' }}>
+                損益: {data.profit >= 0 ? '+' : ''}¥{Math.round(data.profit).toLocaleString()}
+              </p>
+            ) : null
           )}
-          
-          {showProfit && data.profit !== undefined && (
-            <p style={{ color: data.profit >= 0 ? '#10b981' : '#ef4444', fontSize: '13px', marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #eee' }}>
-              損益: {data.profit >= 0 ? '+' : ''}¥{Math.round(data.profit).toLocaleString()}
-            </p>
-          )}
-          
+
           {showExchangeRate && data.exchangeRate && (
             <p style={{ color: '#f59e0b', fontSize: '13px', marginTop: '4px' }}>
               為替: ¥{data.exchangeRate.toFixed(2)}/USD
@@ -1228,7 +1380,8 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
         padding: '15px',
         background: '#f8f9fa',
         borderRadius: '8px',
-        alignItems: 'center'
+        alignItems: 'center',
+        flexWrap: 'wrap'
       }}>
         <span style={{ fontWeight: '600', color: '#333', marginRight: '10px' }}>表示項目:</span>
         <label style={{
@@ -1296,6 +1449,35 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
             style={{ cursor: 'pointer' }}
           />
           為替レート
+        </label>
+        <div style={{
+          width: '2px',
+          height: '30px',
+          background: '#d1d5db',
+          margin: '0 5px'
+        }}></div>
+        <span style={{ fontWeight: '600', color: '#333', marginRight: '10px' }}>表示形式:</span>
+        <label style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          cursor: 'pointer',
+          padding: '6px 12px',
+          background: showPercentage ? '#fce7f3' : 'white',
+          border: `2px solid ${showPercentage ? '#ec4899' : '#e5e7eb'}`,
+          borderRadius: '6px',
+          fontSize: '14px',
+          fontWeight: showPercentage ? '600' : '400',
+          color: showPercentage ? '#831843' : '#6b7280',
+          transition: 'all 0.2s'
+        }}>
+          <input
+            type="checkbox"
+            checked={showPercentage}
+            onChange={(e) => setShowPercentage(e.target.checked)}
+            style={{ cursor: 'pointer' }}
+          />
+          %表示
         </label>
       </div>
 
@@ -1545,7 +1727,7 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
           />
           <YAxis
             yAxisId="left"
-            tickFormatter={formatCurrency}
+            tickFormatter={showPercentage ? (value) => `${value.toFixed(1)}%` : formatCurrency}
             stroke="#666"
             style={{ fontSize: '12px' }}
           />
@@ -1569,15 +1751,15 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
               return value;
             }}
           />
-          {/* 損益表示時に0円のベースラインを追加 */}
-          {showProfit && (
-            <ReferenceLine 
-              yAxisId="left" 
-              y={0} 
-              stroke="#94a3b8" 
+          {/* 0のベースラインを追加 */}
+          {(showProfit || showPercentage) && (
+            <ReferenceLine
+              yAxisId="left"
+              y={0}
+              stroke="#94a3b8"
               strokeWidth={2}
               strokeDasharray="5 5"
-              label={{ value: '±0円', position: 'right', fill: '#64748b', fontSize: 12 }}
+              label={{ value: showPercentage ? '±0%' : '±0円', position: 'right', fill: '#64748b', fontSize: 12 }}
             />
           )}
           {/* 全体タブの場合 */}
@@ -1585,7 +1767,7 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
             <Line
               yAxisId="left"
               type="linear"
-              dataKey="totalValueJPY"
+              dataKey={showPercentage ? "totalValueJPY_pct" : "totalValueJPY"}
               stroke="#667eea"
               strokeWidth={2}
               dot={false}
@@ -1600,17 +1782,17 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
               {(selectedAssets.length > 0 ? selectedAssets : portfolio.map(a => a.id)).map((assetId, index) => {
                 const asset = portfolio.find(a => a.id === assetId);
                 if (!asset) return null;
-                
+
                 // 色を動的に生成
                 const colors = ['#667eea', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
                 const color = colors[index % colors.length];
-                
+
                 return (
                   <Line
                     key={assetId}
                     yAxisId="left"
                     type="linear"
-                    dataKey={`assetValues.${assetId}`}
+                    dataKey={showPercentage ? `assetValues_pct.${assetId}` : `assetValues.${assetId}`}
                     stroke={color}
                     strokeWidth={2}
                     dot={false}
@@ -1621,7 +1803,7 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
               })}
             </>
           )}
-          
+
           {/* タグ別タブの場合 */}
           {activeTab === 'byTag' && showPortfolioValue && (
             <>
@@ -1629,13 +1811,13 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
                 const allTags = Array.from(new Set(portfolio.flatMap(a => a.tags || [])));
                 const tagsToShow = selectedTags.length > 0 ? selectedTags : allTags;
                 const colors = ['#667eea', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
-                
+
                 return tagsToShow.map((tag, index) => (
                   <Line
                     key={tag}
                     yAxisId="left"
                     type="linear"
-                    dataKey={`tagValues.${tag}`}
+                    dataKey={showPercentage ? `tagValues_pct.${tag}` : `tagValues.${tag}`}
                     stroke={colors[index % colors.length]}
                     strokeWidth={2}
                     dot={false}
@@ -1650,7 +1832,7 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
             <Line
               yAxisId="left"
               type="linear"
-              dataKey="profit"
+              dataKey={showPercentage ? "profit_pct" : "profit"}
               stroke="#10b981"
               strokeWidth={2}
               dot={false}
