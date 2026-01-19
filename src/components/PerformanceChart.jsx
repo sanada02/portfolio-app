@@ -11,7 +11,7 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
   const [selectedAssets, setSelectedAssets] = useState([]);  // ← この行が必要
   const [selectedTags, setSelectedTags] = useState([]);  // ← この行が必要
   const [showPercentage, setShowPercentage] = useState(false);  // %表示モード
-  
+
   // getTradeDatesで sellHistory の代わりに loadedSellHistory を使用
 
   // データを日付でソートし、期間に応じてフィルタリング
@@ -19,9 +19,9 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
     if (!data || data.length === 0) {
       return { sortedData: [], filteredData: [] };
     }
-    
+
     // データを日付でソート
-    const sorted = [...data].sort((a, b) => 
+    const sorted = [...data].sort((a, b) =>
       new Date(a.date).getTime() - new Date(b.date).getTime()
     );
 
@@ -56,7 +56,7 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
       itemDate.setHours(0, 0, 0, 0);
       return itemDate >= startDate;
     });
-    
+
     return { sortedData: sorted, filteredData: filtered };
   }, [data, selectedPeriod]);
 
@@ -65,43 +65,43 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
     if (activeTab === 'total') {
       return filteredData;
     }
-    
+
     if (!filteredData || filteredData.length === 0) {
       return [];
     }
-    
+
     // 銘柄別・タグ別の場合は、各スナップショットに銘柄ごとのデータを追加
     return filteredData.map(snapshot => {
       if (!snapshot.assetBreakdown) {
         return snapshot;
       }
-      
+
       let totalValueJPY = 0;
       let totalValueUSD = 0;
       const breakdown = {};
       const assetValues = {}; // 各銘柄の評価額
       const tagValues = {}; // 各タグの評価額
-      
+
       Object.values(snapshot.assetBreakdown).forEach(asset => {
         let shouldInclude = false;
-        
+
         if (activeTab === 'byAsset') {
           shouldInclude = selectedAssets.length === 0 || selectedAssets.includes(asset.id);
         } else if (activeTab === 'byTag') {
-          shouldInclude = selectedTags.length === 0 || 
+          shouldInclude = selectedTags.length === 0 ||
             (asset.tags && asset.tags.some(tag => selectedTags.includes(tag)));
         }
-        
+
         if (shouldInclude) {
           totalValueJPY += asset.valueJPY;
           totalValueUSD += asset.valueUSD;
           breakdown[asset.type] = (breakdown[asset.type] || 0) + asset.valueJPY;
-          
+
           // 銘柄別の評価額を記録
           if (activeTab === 'byAsset') {
             assetValues[asset.id] = asset.valueJPY;
           }
-          
+
           // タグ別の評価額を記録
           if (activeTab === 'byTag' && asset.tags) {
             asset.tags.forEach(tag => {
@@ -112,7 +112,7 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
           }
         }
       });
-      
+
       return {
         ...snapshot,
         totalValueJPY,
@@ -122,13 +122,13 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
         tagValues // タグごとの評価額
       };
     })
-    .filter(snapshot => {
-      // 銘柄別・タグ別の場合、評価額0円のスナップショットを除外
-      if (activeTab === 'byAsset' || activeTab === 'byTag') {
-        return snapshot.totalValueJPY > 0;
-      }
-      return true; // 全体タブの場合はすべて含める
-    });
+      .filter(snapshot => {
+        // 銘柄別・タグ別の場合、評価額0円のスナップショットを除外
+        if (activeTab === 'byAsset' || activeTab === 'byTag') {
+          return snapshot.totalValueJPY > 0;
+        }
+        return true; // 全体タブの場合はすべて含める
+      });
   }, [filteredData, activeTab, selectedAssets, selectedTags]);
 
   // 期間配当を計算
@@ -193,18 +193,18 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
 
     // 🔥 修正: viewFilteredDataから現在の評価額を取得
     const latestFilteredData = viewFilteredData[viewFilteredData.length - 1];
-    
+
     // リアルタイム評価額の計算（タブに応じてフィルタリング）
     let calcTotalJPY = 0;
     let calcTotalUSD = 0;
-    
+
     if (portfolio && portfolio.length > 0) {
       if (activeTab === 'total') {
         // 全体タブ: 全資産を計算
         portfolio.forEach(asset => {
           const currentPrice = asset.currentPrice || asset.purchasePrice;
           const value = currentPrice * asset.activeQuantity;
-          
+
           if (asset.currency === 'USD') {
             calcTotalUSD += value;
             calcTotalJPY += value * exchangeRate;
@@ -218,7 +218,7 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
         portfolio.filter(asset => assetsToShow.includes(asset.id)).forEach(asset => {
           const currentPrice = asset.currentPrice || asset.purchasePrice;
           const value = currentPrice * asset.activeQuantity;
-          
+
           if (asset.currency === 'USD') {
             calcTotalUSD += value;
             calcTotalJPY += value * exchangeRate;
@@ -232,7 +232,7 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
         portfolio.filter(asset => asset.tags && asset.tags.some(tag => tagsToShow.includes(tag))).forEach(asset => {
           const currentPrice = asset.currentPrice || asset.purchasePrice;
           const value = currentPrice * asset.activeQuantity;
-          
+
           if (asset.currency === 'USD') {
             calcTotalUSD += value;
             calcTotalJPY += value * exchangeRate;
@@ -411,20 +411,20 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
     if (!showExchangeRate || chartData.length === 0) {
       return { min: 140, max: 160 };
     }
-    
+
     const rates = chartData
       .map(d => d.exchangeRate)
       .filter(rate => rate != null && rate > 0);
-    
+
     if (rates.length === 0) {
       return { min: 140, max: 160 };
     }
-    
+
     const minRate = Math.min(...rates);
     const maxRate = Math.max(...rates);
     const range = maxRate - minRate;
     const padding = range > 0 ? range * 0.1 : 5; // 10%のパディング、または最低5円
-    
+
     return {
       min: Math.floor(minRate - padding),
       max: Math.ceil(maxRate + padding)
@@ -434,33 +434,33 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
   // 売買日を取得する関数（portfolio + sellHistory）
   // 売買日を取得する関数（portfolio + sellHistory）
   const getTradeDates = useMemo(() => {
-    
+
     const tradeDates = new Set();
-    
+
     if (!portfolio || portfolio.length === 0) {
       return [];
     }
-    
+
     // フィルタリングされた銘柄のIDセットを作成
     let filteredAssets = portfolio;
     if (activeTab === 'byAsset' && selectedAssets.length > 0) {
       filteredAssets = portfolio.filter(asset => selectedAssets.includes(asset.id));
     } else if (activeTab === 'byTag' && selectedTags.length > 0) {
-      filteredAssets = portfolio.filter(asset => 
+      filteredAssets = portfolio.filter(asset =>
         asset.tags && asset.tags.some(tag => selectedTags.includes(tag))
       );
     }
-    
+
     // フィルタリングされた銘柄のIDセット
     const filteredAssetIds = new Set(filteredAssets.map(a => a.id));
-    
+
     // また、統合されている場合はassetIdsも含める
     filteredAssets.forEach(asset => {
       if (asset.assetIds && Array.isArray(asset.assetIds)) {
         asset.assetIds.forEach(id => filteredAssetIds.add(id));
       }
     });
-    
+
     // 1. rawPortfolio（統合前の全レコード）から全購入日を取得
     const sourcePortfolio = rawPortfolio || portfolio;
     sourcePortfolio.forEach(asset => {
@@ -471,7 +471,7 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
         }
       }
     });
-    
+
     // 2. sellHistoryから売却日を取得
     if (sellHistory && Array.isArray(sellHistory)) {
       sellHistory.forEach(sale => {
@@ -483,9 +483,9 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
         }
       });
     }
-    
+
     const sortedDates = Array.from(tradeDates).sort();
-    
+
     return sortedDates;
   }, [portfolio, rawPortfolio, sellHistory, activeTab, selectedAssets, selectedTags]);
 
@@ -537,44 +537,44 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
       } else {
         clusters.push([d]);
       }
-      });
+    });
 
     // 🔥 修正: クラスターの開始日と最後の日をbreakpointsに追加
     const clusterStarts = clusters.map(c => c[0])
       .filter(d => d >= firstValidDate && d <= endDate);
-    
+
     const clusterEnds = clusters.map(c => c[c.length - 1])
       .filter(d => d >= firstValidDate && d <= endDate);
 
 
-     // デバッグログ: クラスター情報
-      console.log('=== Cluster Debug ===');
-      console.log('Total trades:', trades.length);
-      console.log('Clusters:', clusters.length);
-      clusters.forEach((cluster, i) => {
-        console.log(`Cluster ${i}:`, cluster.map(d => toYmd(d)));
-      });
-      console.log('Cluster starts:', clusterStarts.map(d => toYmd(d)));
-      console.log('Cluster ends:', clusterEnds.map(d => toYmd(d)));
+    // デバッグログ: クラスター情報
+    console.log('=== Cluster Debug ===');
+    console.log('Total trades:', trades.length);
+    console.log('Clusters:', clusters.length);
+    clusters.forEach((cluster, i) => {
+      console.log(`Cluster ${i}:`, cluster.map(d => toYmd(d)));
+    });
+    console.log('Cluster starts:', clusterStarts.map(d => toYmd(d)));
+    console.log('Cluster ends:', clusterEnds.map(d => toYmd(d)));
 
 
     // breakpoints: firstValidDate, clusterStarts, clusterEnds, endDate
     const breakpoints = [firstValidDate];
-    
+
     // クラスター開始日を追加
     clusterStarts.forEach(cs => {
       if (cs.getTime() !== firstValidDate.getTime()) {
         breakpoints.push(cs);
       }
     });
-    
+
     // クラスター最後の日を追加
     clusterEnds.forEach(ce => {
       if (ce.getTime() !== firstValidDate.getTime()) {
         breakpoints.push(ce);
       }
     });
-    
+
     // 期間終了日を追加
     if (endDate.getTime() !== breakpoints[breakpoints.length - 1].getTime()) {
       breakpoints.push(endDate);
@@ -643,37 +643,37 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
       });
     }
 
-  // 🔥 修正: 計算区間が0または1の場合はnullを返す
-  // 1区間の場合、疑似CAGRは通常CAGRと同じなので計算不要
-  if (validSegmentCount <= 1) {
-    return null;
-  }
+    // 🔥 修正: 計算区間が0または1の場合はnullを返す
+    // 1区間の場合、疑似CAGRは通常CAGRと同じなので計算不要
+    if (validSegmentCount <= 1) {
+      return null;
+    }
 
-  const days = (endDate - firstValidDate) / (24 * 60 * 60 * 1000);
-  const years = days / 365.25;
-  if (years <= 0) return null;
+    const days = (endDate - firstValidDate) / (24 * 60 * 60 * 1000);
+    const years = days / 365.25;
+    if (years <= 0) return null;
 
-  const pseudoCAGR = (Math.pow(totalMultiplier, 1 / years) - 1) * 100;
+    const pseudoCAGR = (Math.pow(totalMultiplier, 1 / years) - 1) * 100;
 
-  return { pseudoCAGR, segments, totalMultiplier, years, firstValidDate, validSegmentCount };
-};
+    return { pseudoCAGR, segments, totalMultiplier, years, firstValidDate, validSegmentCount };
+  };
 
   // CAGRとMDDを計算
   const { cagr, mdd, pseudoCagr, realCagr, hasTrades, tradeInfo } = useMemo(() => {
     if (!chartData || chartData.length < 2 || initialValue === 0) {
-      return { 
-        cagr: 0, 
-        mdd: 0, 
-        pseudoCagr: null, 
-        realCagr: 0, 
+      return {
+        cagr: 0,
+        mdd: 0,
+        pseudoCagr: null,
+        realCagr: 0,
         hasTrades: false,
-        tradeInfo: null 
+        tradeInfo: null
       };
     }
 
     const startDate = new Date(chartData[0].date);
     const endDate = new Date(chartData[chartData.length - 1].date);
-    
+
     // 🔥 修正: 期間内の売買日を正確にフィルタリング
     const tradesInPeriod = getTradeDates.filter(tradeDate => {
       const date = new Date(tradeDate);
@@ -683,12 +683,12 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
       start.setHours(0, 0, 0, 0);
       const end = new Date(endDate);
       end.setHours(23, 59, 59, 999); // 終了日の終わりまで含める
-      
+
       return date >= start && date <= end;
     });
-    
+
     const hasTradesInPeriod = tradesInPeriod.length > 0;
-    
+
     // デバッグログ
     if (selectedPeriod !== 'all') {
       console.log(`=== Period Trade Detection (${selectedPeriod}) ===`);
@@ -697,17 +697,17 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
       console.log('Trades in period:', tradesInPeriod);
       console.log('Has trades:', hasTradesInPeriod);
     }
-    
+
     // 🔥 修正: 初購入期間の判定
     // フィルタ前の全データから最初の購入日を取得
-    const allFirstDate = sortedData && sortedData.length > 0 
-      ? new Date(sortedData[0].date) 
+    const allFirstDate = sortedData && sortedData.length > 0
+      ? new Date(sortedData[0].date)
       : new Date(chartData[0].date);
     allFirstDate.setHours(0, 0, 0, 0);
-    
+
     const periodStart = new Date(startDate);
     periodStart.setHours(0, 0, 0, 0);
-    
+
     // 期間開始が全データの開始と同じ、かつ1月1日でない場合 → 初購入期間
     const isFirstPurchasePeriod = (allFirstDate.getTime() === periodStart.getTime())
       && (sortedData[0].date.split('-')[1] !== '01' || sortedData[0].date.split('-')[2] !== '01');
@@ -717,7 +717,7 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
     const endValue = totalValueJPY;
     const days = (endDate - startDate) / (24 * 60 * 60 * 1000);
     const years = days / 365.25;
-    
+
     let calculatedRealCagr = 0;
     if (startValue > 0 && endValue > 0 && years > 0) {
       calculatedRealCagr = (Math.pow(endValue / startValue, 1 / years) - 1) * 100;
@@ -725,23 +725,23 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
 
     // 疑似CAGR計算
     // 初購入期間で売買が1件のみの場合はスキップ
-    const shouldCalculatePseudoCagr = hasTradesInPeriod 
+    const shouldCalculatePseudoCagr = hasTradesInPeriod
       && !(isFirstPurchasePeriod && tradesInPeriod.length === 1);
-    
+
     const pseudoResult = shouldCalculatePseudoCagr
       ? calculatePseudoCAGR(chartData, getTradeDates, startDate, endDate)
       : null;
     const calculatedPseudoCagr = pseudoResult ? pseudoResult.pseudoCAGR : null;
 
     // 表示用CAGR（売買があり疑似CAGRが計算できた場合のみ疑似CAGRを使用）
-    const displayCagr = calculatedPseudoCagr !== null 
-      ? calculatedPseudoCagr 
+    const displayCagr = calculatedPseudoCagr !== null
+      ? calculatedPseudoCagr
       : calculatedRealCagr;
 
     // MDD計算
     let maxValue = chartData[0].totalValueJPY;
     let maxDrawdown = 0;
-    
+
     for (const point of chartData) {
       if (point.totalValueJPY > maxValue) {
         maxValue = point.totalValueJPY;
@@ -777,11 +777,11 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
 
     // 年ごとにグループ化
     const yearlyData = {};
-    
+
     chartData.forEach(snapshot => {
       const date = new Date(snapshot.date);
       const year = date.getFullYear();
-      
+
       if (!yearlyData[year]) {
         yearlyData[year] = {
           year,
@@ -790,9 +790,9 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
           endDate: null
         };
       }
-      
+
       yearlyData[year].snapshots.push(snapshot);
-      
+
       if (!yearlyData[year].startDate || snapshot.date < yearlyData[year].startDate) {
         yearlyData[year].startDate = snapshot.date;
       }
@@ -807,31 +807,31 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
 
     // 🔥 修正: results を事前に宣言し、forEach で構築
     const results = [];
-    
+
     years.forEach((year, yearIndex) => {
       const yearData = yearlyData[year];
       const { snapshots } = yearData;
-      
+
       // スナップショットを日付順にソート
-      const sortedSnapshots = [...snapshots].sort((a, b) => 
+      const sortedSnapshots = [...snapshots].sort((a, b) =>
         new Date(a.date) - new Date(b.date)
       );
-      
+
       const firstSnapshot = sortedSnapshots[0];
       const lastSnapshot = sortedSnapshots[sortedSnapshots.length - 1];
-      
+
       // 🔥 修正: 前年の期末評価額を期首として使用
       let startValue = firstSnapshot.totalValueJPY;
       if (yearIndex > 0 && results[yearIndex - 1]) {
         startValue = results[yearIndex - 1].endValue;
       }
-      
+
       // 最新年の場合はリアルタイム評価額を使用
       const isLatestYear = (year === latestYear);
       const endValue = isLatestYear ? totalValueJPY : lastSnapshot.totalValueJPY;
       const profit = endValue - startValue;
       const profitPercent = startValue > 0 ? ((profit / startValue) * 100) : 0;
-      
+
       // その年の売買日を取得
       const startDate = new Date(yearData.startDate);
       const endDate = isLatestYear
@@ -871,7 +871,7 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
         // 期首評価額に対するパーセント
         yearDividendPercent = startValue > 0 ? (yearDividends / startValue) * 100 : 0;
       }
-      
+
       // 期首（1月1日）の売買を除外
       const significantTradeDates = yearTradeDates.filter(tradeDate => {
         const date = new Date(tradeDate);
@@ -879,13 +879,13 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
         const day = date.getDate();
         return !(month === 1 && day === 1);
       });
-      
+
       // 初購入の年かチェック
       const firstDate = new Date(firstSnapshot.date);
       const firstMonth = firstDate.getMonth() + 1;
       const firstDay = firstDate.getDate();
       const isFirstPurchaseYear = firstMonth !== 1 || firstDay !== 1;
-      
+
       // 疑似CAGR計算
       let pseudoCagr = null;
 
@@ -895,7 +895,7 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
       } else if (significantTradeDates.length >= 1) {
         // 疑似CAGR計算用のスナップショット準備
         let snapshotsForCalc = sortedSnapshots;
-        
+
         // 前年がある場合、期首に前年末評価額のスナップショットを追加
         if (yearIndex > 0 && startValue !== firstSnapshot.totalValueJPY) {
           const yearStart = `${year}-01-01`;
@@ -908,12 +908,12 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
             ...sortedSnapshots
           ];
         }
-        
+
         // 🔥 修正: 最新年で最後のスナップショット日付が今日でない場合のみ追加
         if (isLatestYear) {
           const lastSnapshotDate = lastSnapshot.date;
           const todayStr = new Date().toISOString().split('T')[0];
-          
+
           // 最後のスナップショットが今日でない場合のみ、現在評価額を追加
           if (lastSnapshotDate !== todayStr && lastSnapshot.totalValueJPY !== totalValueJPY) {
             snapshotsForCalc = [
@@ -926,15 +926,15 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
             ];
           }
         }
-        
+
         const pseudoResult = calculatePseudoCAGR(
-          snapshotsForCalc, 
+          snapshotsForCalc,
           significantTradeDates,
-          startDate, 
+          startDate,
           endDate
         );
         pseudoCagr = pseudoResult ? pseudoResult.pseudoCAGR : null;
-      } 
+      }
 
       // 通常CAGR計算
       const days = (endDate - startDate) / (24 * 60 * 60 * 1000);
@@ -943,21 +943,21 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
       if (startValue > 0 && endValue > 0 && yearsFraction > 0) {
         realCagr = (Math.pow(endValue / startValue, 1 / yearsFraction) - 1) * 100;
       }
-      
+
       // MDD計算
       let maxValue = sortedSnapshots[0].totalValueJPY;
       let maxDrawdown = 0;
-      
+
       // 前年末評価額がある場合はそれを起点とする
       if (yearIndex > 0 && startValue > maxValue) {
         maxValue = startValue;
       }
-      
+
       const valuesToCheck = [...sortedSnapshots];
       if (isLatestYear) {
         valuesToCheck.push({ totalValueJPY: totalValueJPY });
       }
-      
+
       valuesToCheck.forEach(snapshot => {
         const value = snapshot.totalValueJPY;
         if (value > maxValue) {
@@ -968,10 +968,10 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
           maxDrawdown = drawdown;
         }
       });
-      
+
       // 表示用CAGR（疑似CAGRがあればそれを使用）
       const displayCagr = pseudoCagr !== null ? pseudoCagr : realCagr;
-      
+
       // 🔥 修正: results 配列に追加
       results.push({
         year,
@@ -991,7 +991,7 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
         isFirstPurchaseYear
       });
     });
-    
+
     return results;
   }, [chartData, selectedPeriod, getTradeDates, calculatePseudoCAGR, totalValueJPY, dividends, activeTab, selectedAssets, selectedTags, portfolio]);
 
@@ -1150,6 +1150,150 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
     return baseData;
   }, [chartData, selectedPeriod, showPercentage, activeTab, selectedAssets, selectedTags, portfolio]);
 
+  // きれいな目盛り間隔を計算するヘルパー関数
+  const getNiceTickInterval = (range) => {
+    // 目盛りの候補間隔（円単位）
+    const niceIntervals = [
+      1000,        // 1千円
+      5000,        // 5千円
+      10000,       // 1万円
+      50000,       // 5万円
+      100000,      // 10万円
+      500000,      // 50万円
+      1000000,     // 100万円
+      5000000,     // 500万円
+      10000000,    // 1000万円
+      50000000,    // 5000万円
+      100000000,   // 1億円
+    ];
+
+    // 5〜7個程度の目盛りになるような間隔を選択
+    const targetTickCount = 5;
+    const idealInterval = range / targetTickCount;
+
+    // 理想的な間隔に最も近い候補を選択
+    let bestInterval = niceIntervals[0];
+    for (const interval of niceIntervals) {
+      if (interval <= idealInterval * 2) {
+        bestInterval = interval;
+      }
+    }
+
+    return bestInterval;
+  };
+
+  // Y軸の範囲を計算（評価額用）
+  const portfolioValueRange = useMemo(() => {
+    // 損益表示中は従来通りの自動範囲を使用
+    if (showProfit) {
+      return { min: 'auto', max: 'auto' };
+    }
+
+    if (!displayData || displayData.length === 0) {
+      return { min: 0, max: 'auto' };
+    }
+
+    // %表示モードの場合
+    if (showPercentage) {
+      let allValues = [];
+
+      if (activeTab === 'total') {
+        allValues = displayData
+          .map(d => d.totalValueJPY_pct)
+          .filter(v => v !== undefined && v !== null);
+      } else if (activeTab === 'byAsset') {
+        displayData.forEach(d => {
+          if (d.assetValues_pct) {
+            Object.values(d.assetValues_pct).forEach(v => {
+              if (v !== undefined && v !== null) allValues.push(v);
+            });
+          }
+        });
+      } else if (activeTab === 'byTag') {
+        displayData.forEach(d => {
+          if (d.tagValues_pct) {
+            Object.values(d.tagValues_pct).forEach(v => {
+              if (v !== undefined && v !== null) allValues.push(v);
+            });
+          }
+        });
+      }
+
+      if (allValues.length === 0) {
+        return { min: 'auto', max: 'auto' };
+      }
+
+      const minValue = Math.min(...allValues);
+      const maxValue = Math.max(...allValues);
+      const range = maxValue - minValue;
+
+      // %表示用のきれいな間隔（1%, 2%, 5%, 10%など）
+      const nicePercentIntervals = [1, 2, 5, 10, 20, 50];
+      const targetTickCount = 5;
+      const idealInterval = range / targetTickCount;
+      let bestInterval = 1;
+      for (const interval of nicePercentIntervals) {
+        if (interval <= idealInterval * 2) {
+          bestInterval = interval;
+        }
+      }
+
+      const roundedMin = Math.floor(minValue / bestInterval) * bestInterval;
+      const roundedMax = Math.ceil(maxValue / bestInterval) * bestInterval;
+
+      return {
+        min: roundedMin,
+        max: roundedMax
+      };
+    }
+
+    // 通常表示モードの場合（評価額のみ）
+    let allValues = [];
+
+    if (activeTab === 'total') {
+      allValues = displayData
+        .map(d => d.totalValueJPY)
+        .filter(v => v !== undefined && v !== null && v > 0);
+    } else if (activeTab === 'byAsset') {
+      displayData.forEach(d => {
+        if (d.assetValues) {
+          Object.values(d.assetValues).forEach(v => {
+            if (v !== undefined && v !== null && v > 0) allValues.push(v);
+          });
+        }
+      });
+    } else if (activeTab === 'byTag') {
+      displayData.forEach(d => {
+        if (d.tagValues) {
+          Object.values(d.tagValues).forEach(v => {
+            if (v !== undefined && v !== null && v > 0) allValues.push(v);
+          });
+        }
+      });
+    }
+
+    if (allValues.length === 0) {
+      return { min: 0, max: 'auto' };
+    }
+
+    const minValue = Math.min(...allValues);
+    const maxValue = Math.max(...allValues);
+    const range = maxValue - minValue;
+
+    // きれいな目盛り間隔を計算
+    const tickInterval = getNiceTickInterval(range);
+
+    // 下限を計算（目盛り間隔で切り捨て、ただし0以上）
+    const roundedMin = Math.max(0, Math.floor(minValue / tickInterval) * tickInterval);
+    // 上限を計算（目盛り間隔で切り上げ）
+    const roundedMax = Math.ceil(maxValue / tickInterval) * tickInterval;
+
+    return {
+      min: roundedMin,
+      max: roundedMax
+    };
+  }, [displayData, showPercentage, showProfit, activeTab]);
+
   // 早期リターン（すべてのフックの後に）
   if (!data || data.length === 0) {
     return (
@@ -1165,13 +1309,13 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
     const date = new Date(dateStr);
     const month = date.getMonth() + 1;
     const day = date.getDate();
-    
+
     // 全期間または1年表示の場合は年も表示
     if (selectedPeriod === 'all' || selectedPeriod === '1y') {
       const year = date.getFullYear();
       return `${year}/${month}/${day}`;
     }
-    
+
     return `${month}/${day}`;
   };
 
@@ -1309,7 +1453,7 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
 
   return (
     <div>
-            {/* タブ選択 */}
+      {/* タブ選択 */}
       <div style={{
         display: 'flex',
         gap: '10px',
@@ -1760,19 +1904,19 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
               {mdd !== 0 ? (cagr / Math.abs(mdd)).toFixed(2) : '∞'}
             </span>
           </div>
-          
+
           {/* 売買情報（クリックで表示） */}
           {hasTrades && tradeInfo && (
-            <div 
+            <div
               onClick={() => {
                 const details = document.getElementById('cagr-details');
                 if (details) {
                   details.style.display = details.style.display === 'none' ? 'block' : 'none';
                 }
               }}
-              style={{ 
-                marginTop: '10px', 
-                paddingTop: '10px', 
+              style={{
+                marginTop: '10px',
+                paddingTop: '10px',
                 borderTop: '1px solid rgba(255,255,255,0.3)',
                 fontSize: '11px',
                 opacity: 0.9,
@@ -1819,6 +1963,7 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
             tickFormatter={showPercentage ? (value) => `${value.toFixed(1)}%` : formatCurrency}
             stroke="#666"
             style={{ fontSize: '12px' }}
+            domain={[portfolioValueRange.min, portfolioValueRange.max]}
           />
           {showExchangeRate && (
             <YAxis
@@ -1864,7 +2009,7 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
               name="ポートフォリオ評価額"
             />
           )}
-          
+
           {/* 銘柄別タブの場合 */}
           {activeTab === 'byAsset' && showPortfolioValue && (
             <>
@@ -1995,15 +2140,15 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
           borderRadius: '10px',
           boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
         }}>
-          <h3 style={{ 
-            marginBottom: '16px', 
-            fontSize: '18px', 
+          <h3 style={{
+            marginBottom: '16px',
+            fontSize: '18px',
             fontWeight: '600',
             color: '#333'
           }}>
             📊 年次パフォーマンス
           </h3>
-          
+
           <div style={{ overflowX: 'auto' }}>
             <table style={{
               width: '100%',
@@ -2026,9 +2171,9 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
               </thead>
               <tbody>
                 {yearlyPerformance.map((data, index) => (
-                  <tr 
+                  <tr
                     key={data.year}
-                    style={{ 
+                    style={{
                       borderBottom: '1px solid #e5e7eb',
                       background: index % 2 === 0 ? 'white' : '#f9fafb'
                     }}
@@ -2036,9 +2181,9 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
                     <td style={{ padding: '12px 8px', fontWeight: '600' }}>
                       {data.year}
                       {data.hasTrades && data.pseudoCagr !== null && (
-                        <span style={{ 
-                          marginLeft: '6px', 
-                          fontSize: '10px', 
+                        <span style={{
+                          marginLeft: '6px',
+                          fontSize: '10px',
                           color: '#667eea',
                           fontWeight: '400'
                         }}>
@@ -2085,8 +2230,8 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
                     }}>
                       {data.displayCagr >= 0 ? '+' : ''}{data.displayCagr.toFixed(2)}%
                       {data.pseudoCagr !== null && data.realCagr !== 0 && (
-                        <div style={{ 
-                          fontSize: '11px', 
+                        <div style={{
+                          fontSize: '11px',
                           marginTop: '2px',
                           color: '#6b7280',
                           fontWeight: '400'
@@ -2095,21 +2240,21 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
                         </div>
                       )}
                     </td>
-                    <td style={{ 
-                      padding: '12px 8px', 
+                    <td style={{
+                      padding: '12px 8px',
                       textAlign: 'right',
                       color: '#ef4444',
                       fontWeight: '500'
                     }}>
                       {data.mdd.toFixed(2)}%
                     </td>
-                    <td style={{ 
-                      padding: '12px 8px', 
+                    <td style={{
+                      padding: '12px 8px',
                       textAlign: 'right',
                       fontWeight: '500'
                     }}>
-                      {data.cagrMddRatio !== null 
-                        ? data.cagrMddRatio.toFixed(2) 
+                      {data.cagrMddRatio !== null
+                        ? data.cagrMddRatio.toFixed(2)
                         : '∞'
                       }
                     </td>
@@ -2118,11 +2263,11 @@ const PerformanceChart = ({ data, portfolio, rawPortfolio, exchangeRate, sellHis
               </tbody>
             </table>
           </div>
-          
-          <div style={{ 
-            marginTop: '12px', 
-            fontSize: '11px', 
-            color: '#6b7280' 
+
+          <div style={{
+            marginTop: '12px',
+            fontSize: '11px',
+            color: '#6b7280'
           }}>
             <p style={{ margin: '4px 0' }}>
               * 売買が発生した年は疑似CAGR（時間加重リターン）を使用, 通常のCAGRは()内に表示
