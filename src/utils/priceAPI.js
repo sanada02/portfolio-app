@@ -601,7 +601,7 @@ export const regenerateDailySnapshots = async (portfolio) => {
       const startDateStr = new Date(targetTime - 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
       const endDateStr = new Date(targetTime + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-      const allRates = await db.exchangeRates
+      const allRates = await db.exchangeRatesV2
         .where('date')
         .between(startDateStr, endDateStr)
         .toArray();
@@ -730,7 +730,7 @@ export const regenerateDailySnapshots = async (portfolio) => {
         totalValueJPY,
         totalValueUSD,
         breakdown,
-        exchangeRate,
+        exchangeRates.USD,  // 後方互換性のためUSDレートを保存
         assetBreakdown,
         cumulativeDividends  // 🔥 配当累計を追加
       );

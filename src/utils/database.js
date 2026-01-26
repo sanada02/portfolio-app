@@ -4,7 +4,8 @@ import Dexie from 'dexie';
 // IndexedDB の初期化
 const db = new Dexie('PortfolioDB');
 
-// バージョンを6に変更（スキーマ変更: exchangeRatesに通貨対応）
+// バージョン6: exchangeRatesの主キーを変更（currency+date）
+// 注意: Dexieは主キー変更をサポートしていないため、テーブルを再作成してデータを移行する
 db.version(6).stores({
   // 価格履歴（日次）
   priceHistory: '[symbol+date], symbol, date, price, currency',
@@ -12,11 +13,33 @@ db.version(6).stores({
   // ポートフォリオスナップショット（日次）- 配当累計追加
   dailySnapshots: 'date, totalValueJPY, totalValueUSD, breakdown, exchangeRate, assetBreakdown, cumulativeDividends',
 
-  // 為替レート履歴（複数通貨対応）
-  exchangeRates: '[currency+date], currency, date, rate',
+  // 為替レート履歴（複数通貨対応） - 新しいテーブル名を使用
+  exchangeRatesV2: '[currency+date], currency, date, rate',
+
+  // 旧テーブルを削除
+  exchangeRates: null,
 
   // APIキャッシュ（5分間有効）
   apiCache: 'key, data, timestamp'
+}).upgrade(async tx => {
+  // 旧exchangeRatesテーブルからデータを移行
+  console.log('📦 為替レートデータを移行中...');
+  try {
+    const oldRates = await tx.table('exchangeRates').toArray();
+    console.log(`${oldRates.length}件の為替レートを移行中...`);
+
+    for (const rate of oldRates) {
+      // 旧データはUSDとして移行
+      await tx.table('exchangeRatesV2').put({
+        currency: 'USD',
+        date: rate.date,
+        rate: rate.rate
+      });
+    }
+    console.log('✓ 為替レート移行完了');
+  } catch (error) {
+    console.log('旧exchangeRatesテーブルが存在しないか空です（新規インストール）');
+  }
 });
 
 // 旧バージョンとの互換性
@@ -138,19 +161,19 @@ export const getDailySnapshots = async (days = 30) => {
 };
 
 // ===========================
-// 為替レート（複数通貨対応）
+// 為替レート（複数通貨対応）- exchangeRatesV2テーブルを使用
 // ===========================
 
 export const saveExchangeRate = async (date, rate, currency = 'USD') => {
-  await db.exchangeRates.put({ currency, date, rate });
+  await db.exchangeRatesV2.put({ currency, date, rate });
 };
 
 export const getExchangeRateByDate = async (date, currency = 'USD') => {
-  return await db.exchangeRates.get({ currency, date });
+  return await db.exchangeRatesV2.get([currency, date]);
 };
 
 export const getLatestExchangeRate = async (currency = 'USD') => {
-  const rates = await db.exchangeRates
+  const rates = await db.exchangeRatesV2
     .where('currency')
     .equals(currency)
     .reverse()
@@ -283,7 +306,7 @@ export const getClosestExchangeRate = async (targetDate, currency = 'USD') => {
   const startStr = startDate.toISOString().split('T')[0];
   const endStr = endDate.toISOString().split('T')[0];
 
-  const rates = await db.exchangeRates
+  const rates = await db.exchangeRatesV2
     .where('[currency+date]')
     .between([currency, startStr], [currency, endStr])
     .toArray();
