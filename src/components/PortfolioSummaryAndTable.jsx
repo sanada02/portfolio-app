@@ -1,11 +1,24 @@
-// src/components/PortfolioSummaryAndTable.jsx
+// src/components/PortfolioSummaryAndTable.jsx (HKD対応版)
 import React, { useMemo, useState } from 'react';
 import PortfolioTable from './PortfolioTable';
 import { getComparisonStartDate } from '../utils/dateUtils';
 
-const PortfolioSummaryAndTable = ({ portfolio, exchangeRate, onEdit, onDelete, onSell, onDetail, snapshotData }) => {
+const PortfolioSummaryAndTable = ({ portfolio, exchangeRate, exchangeRates, onEdit, onDelete, onSell, onDetail, snapshotData }) => {
   // 期間タイプのState（day, week, month, year）
   const [periodType, setPeriodType] = useState('day');
+
+  // 通貨に応じた為替レートを取得（後方互換性対応）
+  const getRate = (currency) => {
+    if (currency === 'JPY') return 1;
+    if (exchangeRates && typeof exchangeRates === 'object') {
+      return exchangeRates[currency] || 1;
+    }
+    // 後方互換性: exchangeRateが数値の場合はUSD用
+    if (typeof exchangeRate === 'number' && currency === 'USD') {
+      return exchangeRate;
+    }
+    return 1;
+  };
 
   // 期間ラベルを取得
   const getPeriodLabel = () => {
@@ -74,7 +87,7 @@ const PortfolioSummaryAndTable = ({ portfolio, exchangeRate, onEdit, onDelete, o
     for (const asset of portfolio) {
       const currentPrice = asset.currentPrice || asset.purchasePrice;
       const value = currentPrice * asset.activeQuantity;
-      const valueJPY = asset.currency === 'USD' ? value * exchangeRate : value;
+      const valueJPY = value * getRate(asset.currency);
 
       currentTotalValueJPY += valueJPY;
 
@@ -228,7 +241,7 @@ const PortfolioSummaryAndTable = ({ portfolio, exchangeRate, onEdit, onDelete, o
       latestDate: allMarketsClosed ? latestSnapshot.date : '現在',
       isRealtime: !allMarketsClosed
     };
-  }, [portfolio, exchangeRate, snapshotData, periodType]);
+  }, [portfolio, exchangeRate, exchangeRates, snapshotData, periodType]);
 
   // 合計計算
   const totals = useMemo(() => {
@@ -242,13 +255,13 @@ const PortfolioSummaryAndTable = ({ portfolio, exchangeRate, onEdit, onDelete, o
 
     const totalInvestment = portfolio.reduce((sum, asset) => {
       const investment = asset.purchasePrice * asset.activeQuantity;
-      return sum + (asset.currency === 'USD' ? investment * exchangeRate : investment);
+      return sum + investment * getRate(asset.currency);
     }, 0);
 
     const totalCurrentValue = portfolio.reduce((sum, asset) => {
       const currentPrice = asset.currentPrice || asset.purchasePrice;
       const value = currentPrice * asset.activeQuantity;
-      return sum + (asset.currency === 'USD' ? value * exchangeRate : value);
+      return sum + value * getRate(asset.currency);
     }, 0);
 
     const totalProfit = totalCurrentValue - totalInvestment;
@@ -259,7 +272,7 @@ const PortfolioSummaryAndTable = ({ portfolio, exchangeRate, onEdit, onDelete, o
       totalProfit,
       totalProfitPercent
     };
-  }, [portfolio, exchangeRate]);
+  }, [portfolio, exchangeRate, exchangeRates]);
 
   return (
     <>
@@ -421,6 +434,7 @@ const PortfolioSummaryAndTable = ({ portfolio, exchangeRate, onEdit, onDelete, o
       <PortfolioTable
         portfolio={portfolio}
         exchangeRate={exchangeRate}
+        exchangeRates={exchangeRates}
         periodComparison={periodComparison}
         periodLabel={getPeriodLabel()}
         onEdit={onEdit}

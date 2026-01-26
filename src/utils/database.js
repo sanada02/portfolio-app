@@ -1,25 +1,32 @@
-// src/utils/database.js (配当対応版)
+// src/utils/database.js (配当対応版 + HKD対応)
 import Dexie from 'dexie';
 
 // IndexedDB の初期化
 const db = new Dexie('PortfolioDB');
 
-// バージョンを5に変更（スキーマ変更: dailySnapshotsに配当累計追加）
-db.version(5).stores({
+// バージョンを6に変更（スキーマ変更: exchangeRatesに通貨対応）
+db.version(6).stores({
   // 価格履歴（日次）
   priceHistory: '[symbol+date], symbol, date, price, currency',
-  
+
   // ポートフォリオスナップショット（日次）- 配当累計追加
   dailySnapshots: 'date, totalValueJPY, totalValueUSD, breakdown, exchangeRate, assetBreakdown, cumulativeDividends',
-  
-  // 為替レート履歴
-  exchangeRates: 'date, rate',
-  
+
+  // 為替レート履歴（複数通貨対応）
+  exchangeRates: '[currency+date], currency, date, rate',
+
   // APIキャッシュ（5分間有効）
   apiCache: 'key, data, timestamp'
 });
 
 // 旧バージョンとの互換性
+db.version(5).stores({
+  priceHistory: '[symbol+date], symbol, date, price, currency',
+  dailySnapshots: 'date, totalValueJPY, totalValueUSD, breakdown, exchangeRate, assetBreakdown, cumulativeDividends',
+  exchangeRates: 'date, rate',
+  apiCache: 'key, data, timestamp'
+});
+
 db.version(4).stores({
   priceHistory: '[symbol+date], symbol, date, price, currency',
   dailySnapshots: 'date, totalValueJPY, totalValueUSD, breakdown, exchangeRate, assetBreakdown',
@@ -55,7 +62,7 @@ export const getPriceHistory = async (symbol, days = 30) => {
   const endDate = new Date();
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
-  
+
   return await db.priceHistory
     .where('[symbol+date]')
     .between(
@@ -85,20 +92,20 @@ export const getPriceByDate = async (symbol, date) => {
  * @param {number} cumulativeDividends - この日までの累計配当（円）
  */
 export const saveDailySnapshot = async (
-  date, 
-  totalValueJPY, 
-  totalValueUSD, 
-  breakdown, 
-  exchangeRate = null, 
+  date,
+  totalValueJPY,
+  totalValueUSD,
+  breakdown,
+  exchangeRate = null,
   assetBreakdown = null,
   cumulativeDividends = 0
 ) => {
-  await db.dailySnapshots.put({ 
-    date, 
-    totalValueJPY, 
-    totalValueUSD, 
-    breakdown, 
-    exchangeRate, 
+  await db.dailySnapshots.put({
+    date,
+    totalValueJPY,
+    totalValueUSD,
+    breakdown,
+    exchangeRate,
     assetBreakdown,
     cumulativeDividends
   });
@@ -116,14 +123,14 @@ export const getDailySnapshots = async (days = 30) => {
       .orderBy('date')
       .toArray();
   }
-  
+
   const endDate = new Date();
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
-  
+
   const startStr = startDate.toISOString().split('T')[0];
   const endStr = endDate.toISOString().split('T')[0];
-  
+
   return await db.dailySnapshots
     .where('date')
     .between(startStr, endStr)
@@ -131,20 +138,34 @@ export const getDailySnapshots = async (days = 30) => {
 };
 
 // ===========================
-// 為替レート
+// 為替レート（複数通貨対応）
 // ===========================
 
-export const saveExchangeRate = async (date, rate) => {
-  await db.exchangeRates.put({ date, rate });
+export const saveExchangeRate = async (date, rate, currency = 'USD') => {
+  await db.exchangeRates.put({ currency, date, rate });
 };
 
-export const getExchangeRate = async (date) => {
-  return await db.exchangeRates.get(date);
+export const getExchangeRateByDate = async (date, currency = 'USD') => {
+  return await db.exchangeRates.get({ currency, date });
 };
 
-export const getLatestExchangeRate = async () => {
-  const rates = await db.exchangeRates.orderBy('date').reverse().limit(1).toArray();
+export const getLatestExchangeRate = async (currency = 'USD') => {
+  const rates = await db.exchangeRates
+    .where('currency')
+    .equals(currency)
+    .reverse()
+    .sortBy('date');
   return rates.length > 0 ? rates[0].rate : null;
+};
+
+// 複数通貨の最新レートを一括取得
+export const getLatestExchangeRates = async () => {
+  const usdRate = await getLatestExchangeRate('USD');
+  const hkdRate = await getLatestExchangeRate('HKD');
+  return {
+    USD: usdRate || 150,  // フォールバック
+    HKD: hkdRate || 20    // フォールバック
+  };
 };
 
 // ===========================
@@ -154,16 +175,16 @@ export const getLatestExchangeRate = async () => {
 export const getCache = async (key) => {
   const cached = await db.apiCache.get(key);
   if (!cached) return null;
-  
+
   const now = Date.now();
   const age = now - cached.timestamp;
-  
+
   // 5分（300秒）以上経過していたら無効
   if (age > 5 * 60 * 1000) {
     await db.apiCache.delete(key);
     return null;
   }
-  
+
   return cached.data;
 };
 
@@ -221,23 +242,23 @@ export const getPriceHistoryRange = async (symbol, startDate, endDate) => {
 // 特定日に最も近い価格を取得（前後3日以内）
 export const getClosestPrice = async (symbol, targetDate) => {
   const target = new Date(targetDate);
-  
+
   // 前後3日分を検索
   const startDate = new Date(target);
   startDate.setDate(startDate.getDate() - 3);
   const endDate = new Date(target);
   endDate.setDate(endDate.getDate() + 3);
-  
+
   const startStr = startDate.toISOString().split('T')[0];
   const endStr = endDate.toISOString().split('T')[0];
-  
+
   const prices = await db.priceHistory
     .where('[symbol+date]')
     .between([symbol, startStr], [symbol, endStr])
     .toArray();
-  
+
   if (prices.length === 0) return null;
-  
+
   // 最も近い日付を探す
   const targetTime = target.getTime();
   const closest = prices.reduce((prev, curr) => {
@@ -245,30 +266,30 @@ export const getClosestPrice = async (symbol, targetDate) => {
     const currDiff = Math.abs(new Date(curr.date).getTime() - targetTime);
     return currDiff < prevDiff ? curr : prev;
   });
-  
+
   return closest;
 };
 
-// 特定日に最も近い為替レートを取得
-export const getClosestExchangeRate = async (targetDate) => {
+// 特定日に最も近い為替レートを取得（複数通貨対応）
+export const getClosestExchangeRate = async (targetDate, currency = 'USD') => {
   const target = new Date(targetDate);
-  
+
   // 前後3日分を検索
   const startDate = new Date(target);
   startDate.setDate(startDate.getDate() - 3);
   const endDate = new Date(target);
   endDate.setDate(endDate.getDate() + 3);
-  
+
   const startStr = startDate.toISOString().split('T')[0];
   const endStr = endDate.toISOString().split('T')[0];
-  
+
   const rates = await db.exchangeRates
-    .where('date')
-    .between(startStr, endStr)
+    .where('[currency+date]')
+    .between([currency, startStr], [currency, endStr])
     .toArray();
-  
+
   if (rates.length === 0) return null;
-  
+
   // 最も近い日付を探す
   const targetTime = target.getTime();
   const closest = rates.reduce((prev, curr) => {
@@ -276,6 +297,6 @@ export const getClosestExchangeRate = async (targetDate) => {
     const currDiff = Math.abs(new Date(curr.date).getTime() - targetTime);
     return currDiff < prevDiff ? curr : prev;
   });
-  
+
   return closest.rate;
 };

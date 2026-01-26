@@ -24,7 +24,7 @@ export default function SellHistoryModal({ sellHistory, onClose, onDelete }) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal modal-large" onClick={(e) => e.stopPropagation()}>
         <h2>📊 売却履歴</h2>
-        
+
         <div className="sell-history-summary">
           <div className="summary-card">
             <span>売却回数</span>
@@ -33,12 +33,12 @@ export default function SellHistoryModal({ sellHistory, onClose, onDelete }) {
           <div className="summary-card">
             <span>合計損益（円）</span>
             <strong className={totalProfitJPY >= 0 ? 'profit' : 'loss'}>
-              {totalProfitJPY >= 0 ? '+' : ''}¥{totalProfitJPY.toLocaleString(undefined, {maximumFractionDigits: 0})}
+              {totalProfitJPY >= 0 ? '+' : ''}¥{totalProfitJPY.toLocaleString(undefined, { maximumFractionDigits: 0 })}
             </strong>
           </div>
         </div>
 
-        <div className="table-container" style={{maxHeight: '400px', overflow: 'auto'}}>
+        <div className="table-container" style={{ maxHeight: '400px', overflow: 'auto' }}>
           <table className="portfolio-table">
             <thead>
               <tr>
@@ -63,28 +63,28 @@ export default function SellHistoryModal({ sellHistory, onClose, onDelete }) {
                     <div>
                       <div className="asset-name">{record.name}</div>
                       <div className="asset-symbol">{record.symbol || record.isinCd}</div>
-                      <small style={{color: '#999'}}>取得日: {record.purchaseDate}</small>
+                      <small style={{ color: '#999' }}>取得日: {record.purchaseDate}</small>
                     </div>
                   </td>
                   <td>{record.quantity}</td>
-                  <td>{record.currency === 'USD' ? '$' : '¥'}{record.purchasePrice.toLocaleString(undefined, {maximumFractionDigits: 2})}</td>
-                  <td>{record.currency === 'USD' ? '$' : '¥'}{record.sellPrice.toLocaleString(undefined, {maximumFractionDigits: 2})}</td>
+                  <td>{record.currency === 'USD' ? '$' : record.currency === 'HKD' ? 'HK$' : '¥'}{record.purchasePrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
+                  <td>{record.currency === 'USD' ? '$' : record.currency === 'HKD' ? 'HK$' : '¥'}{record.sellPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
                   <td className={record.profitJPY >= 0 ? 'profit' : 'loss'}>
-                    {record.profitJPY >= 0 ? '+' : ''}¥{record.profitJPY.toLocaleString(undefined, {maximumFractionDigits: 0})}
+                    {record.profitJPY >= 0 ? '+' : ''}¥{record.profitJPY.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                     <br />
                     <small>({record.profitPercent >= 0 ? '+' : ''}{record.profitPercent.toFixed(2)}%)</small>
-                    {record.currency === 'USD' && (
+                    {(record.currency === 'USD' || record.currency === 'HKD') && (
                       <>
                         <br />
-                        <small style={{color: '#999'}}>
-                          {record.profit >= 0 ? '+' : ''}${record.profit.toLocaleString(undefined, {maximumFractionDigits: 2})}
+                        <small style={{ color: '#999' }}>
+                          {record.profit >= 0 ? '+' : ''}{record.currency === 'USD' ? '$' : 'HK$'}{record.profit.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                         </small>
                       </>
                     )}
                   </td>
                   <td>
-                    <button 
-                      className="btn-icon btn-delete" 
+                    <button
+                      className="btn-icon btn-delete"
                       onClick={() => {
                         if (window.confirm('この売却記録を削除しますか？')) {
                           onDelete(record.id);

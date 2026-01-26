@@ -12,7 +12,7 @@ const SellAssetModal = ({ asset, onClose, onSell, exchangeRate, addNotification 
     e.preventDefault();
 
     const quantity = parseFloat(sellQuantity);
-    
+
     if (!quantity || quantity <= 0) {
       addNotification('売却数量を入力してください', 'warning');
       return;
@@ -61,10 +61,13 @@ const SellAssetModal = ({ asset, onClose, onSell, exchangeRate, addNotification 
     if (asset.currency === 'USD') {
       return `$${value}`;
     }
+    if (asset.currency === 'HKD') {
+      return `HK$${value}`;
+    }
     return `¥${value}`;
   };
 
-  const estimatedProfit = sellPrice && sellQuantity 
+  const estimatedProfit = sellPrice && sellQuantity
     ? (parseFloat(sellPrice) - asset.purchasePrice) * parseFloat(sellQuantity)
     : 0;
 
@@ -82,7 +85,7 @@ const SellAssetModal = ({ asset, onClose, onSell, exchangeRate, addNotification 
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <h2>💰 資産を売却</h2>
-        
+
         <div className="asset-info" style={{
           background: '#f8f9fa',
           padding: '16px',

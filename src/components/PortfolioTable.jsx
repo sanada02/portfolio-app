@@ -1,12 +1,28 @@
-// src/components/PortfolioTable.jsx (期間比較対応版)
+// src/components/PortfolioTable.jsx (期間比較対応版 + HKD対応)
 import React, { useState, useMemo } from 'react';
 
-const PortfolioTable = ({ portfolio, exchangeRate, periodComparison, periodLabel = '前日比', onEdit, onDelete, onSell, onDetail }) => {
+const PortfolioTable = ({ portfolio, exchangeRate, exchangeRates, periodComparison, periodLabel = '前日比', onEdit, onDelete, onSell, onDetail }) => {
   const [sortConfig, setSortConfig] = useState({ key: 'currentValueJPY', direction: 'desc' });
+
+  // 通貨に応じた為替レートを取得（後方互換性対応）
+  const getRate = (currency) => {
+    if (currency === 'JPY') return 1;
+    if (exchangeRates && typeof exchangeRates === 'object') {
+      return exchangeRates[currency] || 1;
+    }
+    // 後方互換性: exchangeRateが数値の場合はUSD用
+    if (typeof exchangeRate === 'number' && currency === 'USD') {
+      return exchangeRate;
+    }
+    return 1;
+  };
 
   const formatCurrency = (value, currency) => {
     if (currency === 'USD') {
       return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
+    if (currency === 'HKD') {
+      return `HK$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     }
     return `¥${Math.round(value).toLocaleString()}`;
   };
@@ -36,11 +52,11 @@ const PortfolioTable = ({ portfolio, exchangeRate, periodComparison, periodLabel
     }
 
     let sortableItems = [...portfolio];
-    
+
     if (sortConfig.key) {
       sortableItems.sort((a, b) => {
         let aValue, bValue;
-        
+
         switch (sortConfig.key) {
           case 'name':
             aValue = a.name;
@@ -55,18 +71,18 @@ const PortfolioTable = ({ portfolio, exchangeRate, periodComparison, periodLabel
             bValue = b.activeQuantity;
             break;
           case 'currentPrice':
-            aValue = (a.currentPrice || a.purchasePrice) * (a.currency === 'USD' ? exchangeRate : 1);
-            bValue = (b.currentPrice || b.purchasePrice) * (b.currency === 'USD' ? exchangeRate : 1);
+            aValue = (a.currentPrice || a.purchasePrice) * getRate(a.currency);
+            bValue = (b.currentPrice || b.purchasePrice) * getRate(b.currency);
             break;
           case 'currentValueJPY':
             const aCurrentPrice = a.currentPrice || a.purchasePrice;
             const bCurrentPrice = b.currentPrice || b.purchasePrice;
-            aValue = aCurrentPrice * a.activeQuantity * (a.currency === 'USD' ? exchangeRate : 1);
-            bValue = bCurrentPrice * b.activeQuantity * (b.currency === 'USD' ? exchangeRate : 1);
+            aValue = aCurrentPrice * a.activeQuantity * getRate(a.currency);
+            bValue = bCurrentPrice * b.activeQuantity * getRate(b.currency);
             break;
           case 'profit':
-            const aProfitValue = ((a.currentPrice || a.purchasePrice) - a.purchasePrice) * a.activeQuantity * (a.currency === 'USD' ? exchangeRate : 1);
-            const bProfitValue = ((b.currentPrice || b.purchasePrice) - b.purchasePrice) * b.activeQuantity * (b.currency === 'USD' ? exchangeRate : 1);
+            const aProfitValue = ((a.currentPrice || a.purchasePrice) - a.purchasePrice) * a.activeQuantity * getRate(a.currency);
+            const bProfitValue = ((b.currentPrice || b.purchasePrice) - b.purchasePrice) * b.activeQuantity * getRate(b.currency);
             aValue = aProfitValue;
             bValue = bProfitValue;
             break;
@@ -102,7 +118,7 @@ const PortfolioTable = ({ portfolio, exchangeRate, periodComparison, periodLabel
             aValue = 0;
             bValue = 0;
         }
-        
+
         if (aValue < bValue) {
           return sortConfig.direction === 'asc' ? -1 : 1;
         }
@@ -112,9 +128,9 @@ const PortfolioTable = ({ portfolio, exchangeRate, periodComparison, periodLabel
         return 0;
       });
     }
-    
+
     return sortableItems;
-  }, [portfolio, sortConfig, exchangeRate, periodComparison]);
+  }, [portfolio, sortConfig, exchangeRate, exchangeRates, periodComparison]);
 
   // ソート変更ハンドラー
   const requestSort = (key) => {
@@ -133,16 +149,16 @@ const PortfolioTable = ({ portfolio, exchangeRate, periodComparison, periodLabel
     return sortConfig.direction === 'asc' ? ' ▲' : ' ▼';
   };
 
-  // 総計算（空配列でも安全）
+  // 総計算（空配列でも安全）- 複数通貨対応
   const totalInvestment = (portfolio || []).reduce((sum, asset) => {
     const investment = asset.purchasePrice * asset.activeQuantity;
-    return sum + (asset.currency === 'USD' ? investment * exchangeRate : investment);
+    return sum + investment * getRate(asset.currency);
   }, 0);
 
   const totalCurrentValue = (portfolio || []).reduce((sum, asset) => {
     const currentPrice = asset.currentPrice || asset.purchasePrice;
     const value = currentPrice * asset.activeQuantity;
-    return sum + (asset.currency === 'USD' ? value * exchangeRate : value);
+    return sum + value * getRate(asset.currency);
   }, 0);
 
   const totalProfit = totalCurrentValue - totalInvestment;
@@ -198,8 +214,8 @@ const PortfolioTable = ({ portfolio, exchangeRate, periodComparison, periodLabel
             const profit = currentValue - investmentValue;
             const profitPercent = investmentValue > 0 ? (profit / investmentValue) * 100 : 0;
 
-            // 円換算の評価額
-            const currentValueJPY = asset.currency === 'USD' ? currentValue * exchangeRate : currentValue;
+            // 円換算の評価額 - 複数通貨対応
+            const currentValueJPY = currentValue * getRate(asset.currency);
 
             // 期間比較を取得
             const periodChangeData = periodComparison?.assetChanges?.[asset.id];
@@ -242,9 +258,9 @@ const PortfolioTable = ({ portfolio, exchangeRate, periodComparison, periodLabel
                       fontWeight: '500'
                     }}>
                       {asset.type === 'stock' ? '株式' :
-                       asset.type === 'fund' ? '投資信託' :
-                       asset.type === 'etf' ? 'ETF' :
-                       asset.type === 'crypto' ? '仮想通貨' : 'その他'}
+                        asset.type === 'fund' ? '投資信託' :
+                          asset.type === 'etf' ? 'ETF' :
+                            asset.type === 'crypto' ? '仮想通貨' : 'その他'}
                     </span>
                     {(asset.symbol || asset.isinCd) && (
                       <div style={{

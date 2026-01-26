@@ -10,25 +10,25 @@ import { fetchYahooFinance, fetchFundData } from './tauriAPI';
 // 現在価格を取得
 export const getCurrentPrice = async (symbol) => {
   const cacheKey = `price_${symbol}`;
-  
+
   // キャッシュチェック
   const cached = await getCache(cacheKey);
   if (cached) {
     console.log(`✓ キャッシュから取得: ${symbol}`);
     return cached;
   }
-  
+
   try {
     const data = await fetchYahooFinance({
       symbol,
       interval: '1d',
       range: '1d'
     });
-    
+
     if (data.chart.error) {
       throw new Error(data.chart.error.description);
     }
-    
+
     const quote = data.chart.result[0];
     const meta = quote.meta;
 
@@ -47,17 +47,17 @@ export const getCurrentPrice = async (symbol) => {
       marketState,
       isMarketOpen
     };
-    
+
     // キャッシュに保存
     await setCache(cacheKey, result);
-    
+
     // 今日の価格として履歴に保存
     const today = new Date().toISOString().split('T')[0];
     await savePriceHistory(symbol, today, price, currency);
-    
+
     console.log(`✓ 価格取得成功: ${symbol} = ${currency} ${price}`);
     return result;
-    
+
   } catch (error) {
     console.error(`✗ 価格取得エラー (${symbol}):`, error.message);
     return null;
@@ -71,15 +71,15 @@ export const getHistoricalPrices = async (symbol, days = 30) => {
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
     const yesterdayStr = yesterday.toISOString().split('T')[0];
-    
+
     const existingPrice = await getPriceByDate(symbol, yesterdayStr);
-    
+
     // 昨日のデータがあれば、今日分だけ取得
     if (existingPrice) {
       console.log(`✓ ${symbol}: 既存データあり。今日分のみ取得`);
       return await getCurrentPrice(symbol);
     }
-    
+
     // データがない場合は全期間取得
     console.log(`⏳ ${symbol}: 履歴データを取得中（${days}日分）...`);
 
@@ -92,11 +92,11 @@ export const getHistoricalPrices = async (symbol, days = 30) => {
       period2: endDate.toString(),
       interval: '1d'
     });
-    
+
     if (data.chart.error) {
       throw new Error(data.chart.error.description);
     }
-    
+
     const result = data.chart.result[0];
     const timestamps = result.timestamp;
     const prices = result.indicators.quote[0].close;
@@ -128,7 +128,7 @@ export const getHistoricalPrices = async (symbol, days = 30) => {
       marketState,
       isMarketOpen
     };
-    
+
   } catch (error) {
     console.error(`✗ 履歴取得エラー (${symbol}):`, error.message);
     // フォールバック: 現在価格だけ取得
@@ -142,7 +142,7 @@ export const getHistoricalPrices = async (symbol, days = 30) => {
 
 export const getFundPrice = async (isinCd, associFundCd) => {
   const cacheKey = `fund_${isinCd}`;
-  
+
   // キャッシュチェック（1日1回）
   const cached = await getCache(cacheKey);
   if (cached) {
@@ -153,36 +153,36 @@ export const getFundPrice = async (isinCd, associFundCd) => {
       return cached;
     }
   }
-  
+
   try {
     const csvText = await fetchFundData({
       isinCd,
       associFundCd
     });
-    
+
     console.log('CSV生データ（最初の3行）:', csvText.split('\n').slice(0, 3).join('\n'));
-    
+
     // CSV解析 - 全行を処理
     const lines = csvText.trim().split('\n');
     const dataLines = lines.filter(line => !line.startsWith('年月日') && line.trim());
-    
+
     if (dataLines.length === 0) {
       throw new Error('CSVデータが空です');
     }
-    
+
     let savedCount = 0;
     let latestPrice = null;
     let latestDate = null;
-    
+
     // 全ての行を処理して履歴を保存
     for (const line of dataLines) {
       const columns = line.split(',');
-      
+
       if (columns.length < 2) continue;
-      
+
       const dateStr = columns[0].trim().replace(/"/g, '');
       const priceStr = columns[1].trim().replace(/"/g, '').replace(/,/g, '');
-      
+
       // 日付解析
       let date;
       let dateMatch = dateStr.match(/(\d+)年(\d+)月(\d+)日/);
@@ -202,21 +202,21 @@ export const getFundPrice = async (isinCd, associFundCd) => {
           continue;
         }
       }
-      
+
       const price = parseFloat(priceStr);
       if (isNaN(price)) continue;
-      
+
       // 履歴に保存
       await savePriceHistory(isinCd, date, price, 'JPY');
       savedCount++;
-      
+
       // 最新の価格を記録
       if (!latestDate || date > latestDate) {
         latestDate = date;
         latestPrice = price;
       }
     }
-    
+
     console.log(`✓ 投資信託取得成功: ${isinCd} = ¥${latestPrice} (${latestDate}) - ${savedCount}日分の履歴を保存`);
 
     const result = {
@@ -229,7 +229,7 @@ export const getFundPrice = async (isinCd, associFundCd) => {
     await setCache(cacheKey, result);
 
     return result;
-    
+
   } catch (error) {
     console.error(`✗ 投資信託取得エラー (${isinCd}):`, error.message);
     throw error;
@@ -242,31 +242,31 @@ export const getFundPrice = async (isinCd, associFundCd) => {
 
 export const getExchangeRate = async () => {
   const cacheKey = 'exchange_rate_USDJPY';
-  
+
   const cached = await getCache(cacheKey);
   if (cached) {
-    console.log(`✓ 為替レートをキャッシュから取得: ¥${cached.rate}`);
+    console.log(`✓ 為替レート(USD/JPY)をキャッシュから取得: ¥${cached.rate}`);
     return cached.rate;
   }
-  
+
   try {
     const result = await getCurrentPrice('USDJPY=X');
-    
+
     if (!result || !result.price) {
       throw new Error('為替レートの取得に失敗');
     }
-    
+
     const rate = result.price;
     await setCache(cacheKey, { rate });
-    
-    console.log(`✓ 為替レート取得成功: ¥${rate}`);
+
+    console.log(`✓ 為替レート(USD/JPY)取得成功: ¥${rate}`);
     return rate;
-    
+
   } catch (error) {
-    console.error('✗ 為替レート取得エラー:', error.message);
+    console.error('✗ 為替レート(USD/JPY)取得エラー:', error.message);
     console.log('⚠ フォールバック値を使用: ¥150');
     const fallbackRate = 150;
-    
+
     const today = new Date().toISOString().split('T')[0];
     try {
       await saveExchangeRate(today, fallbackRate);
@@ -274,55 +274,123 @@ export const getExchangeRate = async () => {
     } catch (saveError) {
       console.error('フォールバック値の保存に失敗:', saveError);
     }
-    
+
     return fallbackRate;
   }
 };
 
-export const getExchangeRateHistory = async (startDate, endDate = null) => {
+// 香港ドル(HKD/JPY)レート取得
+export const getHKDExchangeRate = async () => {
+  const cacheKey = 'exchange_rate_HKDJPY';
+
+  const cached = await getCache(cacheKey);
+  if (cached) {
+    console.log(`✓ 為替レート(HKD/JPY)をキャッシュから取得: ¥${cached.rate}`);
+    return cached.rate;
+  }
+
+  try {
+    const result = await getCurrentPrice('HKDJPY=X');
+
+    if (!result || !result.price) {
+      throw new Error('HKD為替レートの取得に失敗');
+    }
+
+    const rate = result.price;
+    await setCache(cacheKey, { rate });
+
+    console.log(`✓ 為替レート(HKD/JPY)取得成功: ¥${rate}`);
+    return rate;
+
+  } catch (error) {
+    console.error('✗ 為替レート(HKD/JPY)取得エラー:', error.message);
+    console.log('⚠ フォールバック値を使用: ¥20');
+    const fallbackRate = 20; // HKD/JPY の概算レート
+
+    const today = new Date().toISOString().split('T')[0];
+    try {
+      await saveExchangeRate(today, fallbackRate, 'HKD');
+      await setCache(cacheKey, { rate: fallbackRate });
+    } catch (saveError) {
+      console.error('フォールバック値の保存に失敗:', saveError);
+    }
+
+    return fallbackRate;
+  }
+};
+
+// 複数通貨の為替レートを一括取得
+export const getExchangeRates = async () => {
+  const [usdRate, hkdRate] = await Promise.all([
+    getExchangeRate(),
+    getHKDExchangeRate()
+  ]);
+
+  return {
+    USD: usdRate,
+    HKD: hkdRate
+  };
+};
+
+// 為替レート履歴を取得（通貨指定可能）
+export const getExchangeRateHistory = async (startDate, endDate = null, currency = 'USD') => {
+  const symbol = currency === 'HKD' ? 'HKDJPY=X' : 'USDJPY=X';
+
   try {
     const end = endDate ? new Date(endDate) : new Date();
     const start = new Date(startDate);
-    
+
     const period1 = Math.floor(start.getTime() / 1000);
     const period2 = Math.floor(end.getTime() / 1000);
-    
-    console.log(`⏳ 為替レート履歴を取得中（${startDate} ～ ${end.toISOString().split('T')[0]}）...`);
+
+    console.log(`⏳ 為替レート(${currency}/JPY)履歴を取得中（${startDate} ～ ${end.toISOString().split('T')[0]}）...`);
 
     const data = await fetchYahooFinance({
-      symbol: 'USDJPY=X',
+      symbol,
       period1: period1.toString(),
       period2: period2.toString(),
       interval: '1d'
     });
-    
+
     if (data.chart.error) {
       throw new Error(data.chart.error.description);
     }
-    
+
     const result = data.chart.result[0];
     const timestamps = result.timestamp;
     const prices = result.indicators.quote[0].close;
-    
+
     // 為替レート履歴を保存
     let savedCount = 0;
     for (let i = 0; i < timestamps.length; i++) {
       if (prices[i] !== null) {
         const date = new Date(timestamps[i] * 1000).toISOString().split('T')[0];
-        await saveExchangeRate(date, prices[i]);
+        await saveExchangeRate(date, prices[i], currency);
         savedCount++;
       }
     }
-    
-    console.log(`✓ 為替レート: ${savedCount}日分の履歴を保存`);
-    
+
+    console.log(`✓ 為替レート(${currency}/JPY): ${savedCount}日分の履歴を保存`);
+
     return { success: true, count: savedCount };
-    
+
   } catch (error) {
-    console.error('✗ 為替レート履歴取得エラー:', error.message);
+    console.error(`✗ 為替レート(${currency}/JPY)履歴取得エラー:`, error.message);
     return null;
   }
 };
+
+// 複数通貨の為替レート履歴を一括取得
+export const getExchangeRateHistoryMulti = async (startDate, endDate = null, currencies = ['USD', 'HKD']) => {
+  const results = {};
+  for (const currency of currencies) {
+    results[currency] = await getExchangeRateHistory(startDate, endDate, currency);
+    // API制限対策で少し待機
+    await new Promise(resolve => setTimeout(resolve, 500));
+  }
+  return results;
+};
+
 
 // ===========================
 // 全履歴取得
@@ -332,10 +400,10 @@ export const getFullHistoricalPrices = async (symbol, startDate, endDate = null)
   try {
     const end = endDate ? new Date(endDate) : new Date();
     const start = new Date(startDate);
-    
+
     const period1 = Math.floor(start.getTime() / 1000);
     const period2 = Math.floor(end.getTime() / 1000);
-    
+
     console.log(`⏳ ${symbol}: 全履歴データを取得中（${startDate} ～ ${end.toISOString().split('T')[0]}）...`);
 
     const data = await fetchYahooFinance({
@@ -344,16 +412,16 @@ export const getFullHistoricalPrices = async (symbol, startDate, endDate = null)
       period2: period2.toString(),
       interval: '1d'
     });
-    
+
     if (data.chart.error) {
       throw new Error(data.chart.error.description);
     }
-    
+
     const result = data.chart.result[0];
     const timestamps = result.timestamp;
     const prices = result.indicators.quote[0].close;
     const currency = result.meta.currency;
-    
+
     // 全履歴を保存
     let savedCount = 0;
     for (let i = 0; i < timestamps.length; i++) {
@@ -363,11 +431,11 @@ export const getFullHistoricalPrices = async (symbol, startDate, endDate = null)
         savedCount++;
       }
     }
-    
+
     console.log(`✓ ${symbol}: ${savedCount}日分の全履歴を保存`);
-    
+
     return { success: true, count: savedCount, currency };
-    
+
   } catch (error) {
     console.error(`✗ 全履歴取得エラー (${symbol}):`, error.message);
     return null;
@@ -376,35 +444,35 @@ export const getFullHistoricalPrices = async (symbol, startDate, endDate = null)
 
 export const getPriceAtDate = async (symbol, date) => {
   const cacheKey = `price_${symbol}_${date}`;
-  
+
   const cached = await getCache(cacheKey);
   if (cached) {
     console.log(`✓ キャッシュから取得: ${symbol} @ ${date}`);
     return cached;
   }
-  
+
   const dbPrice = await getPriceByDate(symbol, date);
   if (dbPrice) {
     console.log(`✓ DBから取得: ${symbol} @ ${date} = ${dbPrice.currency} ${dbPrice.price}`);
     return { price: dbPrice.price, currency: dbPrice.currency };
   }
-  
+
   console.log(`⏳ ${symbol}: ${date}の価格を取得するため履歴をダウンロード中...`);
-  
+
   const purchaseDate = new Date(date);
   const startDate = new Date(purchaseDate);
   startDate.setMonth(startDate.getMonth() - 1);
-  
+
   await getFullHistoricalPrices(symbol, startDate.toISOString().split('T')[0], date);
-  
+
   const closestPrice = await getClosestPrice(symbol, date);
-  
+
   if (closestPrice) {
     const result = { price: closestPrice.price, currency: closestPrice.currency };
     await setCache(cacheKey, result);
     return result;
   }
-  
+
   return null;
 };
 
@@ -416,30 +484,37 @@ export const rebuildAllHistory = async (portfolio) => {
   console.log('========================================');
   console.log('📊 全履歴データの再構築を開始します');
   console.log('========================================');
-  
+
   if (portfolio.length === 0) {
     return { success: false, message: 'ポートフォリオが空です' };
   }
-  
+
   const oldestPurchaseDate = portfolio.reduce((oldest, asset) => {
     const purchaseDate = new Date(asset.purchaseDate);
     return !oldest || purchaseDate < oldest ? purchaseDate : oldest;
   }, null);
-  
+
   console.log(`最古の購入日: ${oldestPurchaseDate.toISOString().split('T')[0]}`);
-  
+
   const hasUSD = portfolio.some(asset => asset.currency === 'USD');
+  const hasHKD = portfolio.some(asset => asset.currency === 'HKD');
+
   if (hasUSD) {
-    console.log('\n為替レート履歴を取得中...');
-    await getExchangeRateHistory(oldestPurchaseDate.toISOString().split('T')[0]);
+    console.log('\n為替レート(USD/JPY)履歴を取得中...');
+    await getExchangeRateHistory(oldestPurchaseDate.toISOString().split('T')[0], null, 'USD');
   }
-  
+
+  if (hasHKD) {
+    console.log('\n為替レート(HKD/JPY)履歴を取得中...');
+    await getExchangeRateHistory(oldestPurchaseDate.toISOString().split('T')[0], null, 'HKD');
+  }
+
   const errors = [];
-  
+
   for (let i = 0; i < portfolio.length; i++) {
     const asset = portfolio[i];
     console.log(`\n[${i + 1}/${portfolio.length}] ${asset.name} の履歴を取得中...`);
-    
+
     try {
       if (asset.type === 'fund') {
         await getFundPrice(asset.isinCd, asset.associFundCd);
@@ -451,14 +526,14 @@ export const rebuildAllHistory = async (portfolio) => {
       console.error(`✗ ${asset.name}: ${error.message}`);
       errors.push(`${asset.name}: ${error.message}`);
     }
-    
+
     await new Promise(resolve => setTimeout(resolve, 1000));
   }
-  
+
   console.log('\n========================================');
   console.log('✓ 全履歴データの取得が完了しました');
   console.log('========================================\n');
-  
+
   return {
     success: true,
     oldestDate: oldestPurchaseDate.toISOString().split('T')[0],
@@ -474,75 +549,79 @@ export const regenerateDailySnapshots = async (portfolio) => {
   console.log('========================================');
   console.log('📊 日次スナップショットの再生成を開始します（配当対応）');
   console.log('========================================');
-  
+
   if (portfolio.length === 0) {
     return { success: false, message: 'ポートフォリオが空です' };
   }
-  
+
   // 売却履歴と配当データを取得
   const sellHistory = getSellHistory();
   const { getDividends } = await import('./storage');
   const dividends = getDividends();
-  
+
   console.log(`配当データ: ${dividends.length}件`);
-  
+
   // 🔥 直接インポートして無限再帰を防ぐ
   const db = (await import('./database')).default;
-  
+
   // 最も古い購入日を特定
   const oldestPurchaseDate = portfolio.reduce((oldest, asset) => {
     const purchaseDate = new Date(asset.purchaseDate);
     return !oldest || purchaseDate < oldest ? purchaseDate : oldest;
   }, null);
-  
+
   const today = new Date();
   const startDate = new Date(oldestPurchaseDate);
-  
+
   console.log(`期間: ${startDate.toISOString().split('T')[0]} ～ ${today.toISOString().split('T')[0]}`);
-  
+
   let snapshotCount = 0;
   const currentDate = new Date(startDate);
-  
+
   // 日付を1日ずつ進めながらスナップショットを生成
   while (currentDate <= today) {
     const dateStr = currentDate.toISOString().split('T')[0];
-    
+
     // この日時点での保有銘柄を特定（購入日 <= 現在日）
     const assetsOnDate = portfolio.filter(asset => {
       const purchaseDate = new Date(asset.purchaseDate);
       return purchaseDate <= currentDate;
     });
-    
+
     if (assetsOnDate.length === 0) {
       currentDate.setDate(currentDate.getDate() + 1);
       continue;
     }
-    
-    // 🔥 為替レートを直接DBから取得（無限再帰を防ぐ）
-    let exchangeRate = 150;
+
+    // 🔥 為替レートを直接DBから取得（無限再帰を防ぐ）- 複数通貨対応
+    let exchangeRates = { USD: 150, HKD: 20 };
     try {
       // 前後3日以内の最も近い為替レートを取得
       const targetTime = currentDate.getTime();
-      const rates = await db.exchangeRates
+      const startDateStr = new Date(targetTime - 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      const endDateStr = new Date(targetTime + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+      const allRates = await db.exchangeRates
         .where('date')
-        .between(
-          new Date(targetTime - 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          new Date(targetTime + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-        )
+        .between(startDateStr, endDateStr)
         .toArray();
-      
-      if (rates.length > 0) {
-        const closest = rates.reduce((prev, curr) => {
-          const prevDiff = Math.abs(new Date(prev.date).getTime() - targetTime);
-          const currDiff = Math.abs(new Date(curr.date).getTime() - targetTime);
-          return currDiff < prevDiff ? curr : prev;
-        });
-        exchangeRate = closest.rate;
+
+      // 通貨ごとに最も近いレートを取得
+      for (const currency of ['USD', 'HKD']) {
+        const currencyRates = allRates.filter(r => r.currency === currency);
+        if (currencyRates.length > 0) {
+          const closest = currencyRates.reduce((prev, curr) => {
+            const prevDiff = Math.abs(new Date(prev.date).getTime() - targetTime);
+            const currDiff = Math.abs(new Date(curr.date).getTime() - targetTime);
+            return currDiff < prevDiff ? curr : prev;
+          });
+          exchangeRates[currency] = closest.rate;
+        }
       }
     } catch (error) {
       console.error(`為替レート取得エラー (${dateStr}):`, error);
     }
-    
+
     // 🔥 この日までの累計配当を計算
     let cumulativeDividends = 0;
     try {
@@ -555,14 +634,14 @@ export const regenerateDailySnapshots = async (portfolio) => {
     } catch (error) {
       console.error(`配当累計計算エラー (${dateStr}):`, error);
     }
-    
+
     // 各銘柄のこの日の価格と実質保有数量を計算
     let totalValueJPY = 0;
     let totalValueUSD = 0;
     const breakdown = {};
     const assetBreakdown = {};
     let hasData = false;
-    
+
     for (const asset of assetsOnDate) {
       // この日時点での売却済み数量を計算
       const soldQuantityOnDate = sellHistory
@@ -572,18 +651,18 @@ export const regenerateDailySnapshots = async (portfolio) => {
           return sellDate <= currentDate;
         })
         .reduce((sum, record) => sum + record.quantity, 0);
-      
+
       // 実質保有数量 = 元の数量 - この日までの売却数量
       const activeQuantity = asset.quantity - soldQuantityOnDate;
-      
+
       // 完全売却済みの場合はスキップ
       if (activeQuantity <= 0) {
         continue;
       }
-      
+
       // 🔥 DBから直接価格を取得（無限再帰を防ぐ）
       let price = asset.purchasePrice; // デフォルト値
-      
+
       try {
         // 前後3日以内の最も近い価格を取得
         const targetTime = currentDate.getTime();
@@ -595,7 +674,7 @@ export const regenerateDailySnapshots = async (portfolio) => {
             [priceKey, new Date(targetTime + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]]
           )
           .toArray();
-        
+
         if (prices.length > 0) {
           const closest = prices.reduce((prev, curr) => {
             const prevDiff = Math.abs(new Date(prev.date).getTime() - targetTime);
@@ -608,20 +687,19 @@ export const regenerateDailySnapshots = async (portfolio) => {
       } catch (error) {
         console.error(`価格取得エラー (${asset.name} @ ${dateStr}):`, error);
       }
-      
-      // 実質保有数量で価値を計算
-      const value = asset.currency === 'USD' 
-        ? price * activeQuantity * exchangeRate
-        : price * activeQuantity;
-      
+
+      // 実質保有数量で価値を計算 - 複数通貨対応
+      const rate = asset.currency === 'JPY' ? 1 : (exchangeRates[asset.currency] || 1);
+      const value = price * activeQuantity * rate;
+
       totalValueJPY += value;
-      
+
       if (asset.currency === 'USD') {
         totalValueUSD += price * activeQuantity;
       }
-      
+
       breakdown[asset.type] = (breakdown[asset.type] || 0) + value;
-      
+
       // 銘柄別データの保存
       const assetKey = asset.symbol || asset.isinCd || asset.id;
       if (!assetBreakdown[assetKey]) {
@@ -644,32 +722,32 @@ export const regenerateDailySnapshots = async (portfolio) => {
         assetBreakdown[assetKey].valueUSD += asset.currency === 'USD' ? price * activeQuantity : 0;
       }
     }
-    
+
     // データがある場合のみスナップショットを保存（配当累計を含む）
     if (hasData) {
       await saveDailySnapshot(
-        dateStr, 
-        totalValueJPY, 
-        totalValueUSD, 
-        breakdown, 
-        exchangeRate, 
+        dateStr,
+        totalValueJPY,
+        totalValueUSD,
+        breakdown,
+        exchangeRate,
         assetBreakdown,
         cumulativeDividends  // 🔥 配当累計を追加
       );
       snapshotCount++;
-      
+
       if (snapshotCount % 10 === 0) {
         console.log(`進捗: ${snapshotCount}日分のスナップショットを生成`);
       }
     }
-    
+
     currentDate.setDate(currentDate.getDate() + 1);
   }
-  
+
   console.log('\n========================================');
   console.log(`✓ ${snapshotCount}日分のスナップショットを生成しました（配当累計含む）`);
   console.log('========================================\n');
-  
+
   return {
     success: true,
     snapshotCount
@@ -677,13 +755,28 @@ export const regenerateDailySnapshots = async (portfolio) => {
 };
 
 // ===========================
-// 今日のスナップショットを生成
+// 今日のスナップショットを生成 - 複数通貨対応
 // ===========================
 
-export const generateTodaySnapshot = async (portfolio, exchangeRate) => {
+export const generateTodaySnapshot = async (portfolio, exchangeRateOrRates) => {
   console.log('📸 今日のスナップショットを生成中...');
 
   const today = new Date().toISOString().split('T')[0];
+
+  // exchangeRates を正規化（後方互換性対応）
+  let exchangeRates;
+  if (typeof exchangeRateOrRates === 'object' && exchangeRateOrRates !== null) {
+    exchangeRates = exchangeRateOrRates;
+  } else {
+    // 数値の場合はUSD用として扱う
+    exchangeRates = { USD: exchangeRateOrRates || 150, HKD: 20 };
+  }
+
+  // 通貨に応じたレートを取得するヘルパー
+  const getRate = (currency) => {
+    if (currency === 'JPY') return 1;
+    return exchangeRates[currency] || 1;
+  };
 
   // 市場が開いている銘柄があるかチェック
   const hasOpenMarket = portfolio.some(asset => asset.isMarketOpen === true);
@@ -744,9 +837,7 @@ export const generateTodaySnapshot = async (portfolio, exchangeRate) => {
     }
 
     const currentPrice = priceToUse;
-    const value = asset.currency === 'USD'
-      ? currentPrice * activeQuantity * exchangeRate
-      : currentPrice * activeQuantity;
+    const value = currentPrice * activeQuantity * getRate(asset.currency);
 
     totalValueJPY += value;
 
@@ -785,7 +876,7 @@ export const generateTodaySnapshot = async (portfolio, exchangeRate) => {
     totalValueJPY,
     totalValueUSD,
     breakdown,
-    exchangeRate,
+    exchangeRates.USD, // 後方互換性のためUSDレートを保存
     assetBreakdown,
     cumulativeDividends
   );
@@ -796,7 +887,7 @@ export const generateTodaySnapshot = async (portfolio, exchangeRate) => {
 };
 
 // ===========================
-// バッチ更新（全銘柄）
+// バッチ更新（全銘柄）- 複数通貨対応
 // ===========================
 
 export const updateAllPrices = async (portfolio) => {
@@ -807,29 +898,32 @@ export const updateAllPrices = async (portfolio) => {
   // キャッシュをクリアして最新の価格を取得
   await clearCache();
 
-  const exchangeRate = await getExchangeRate();
+  // 複数通貨の為替レートを取得
+  const exchangeRates = await getExchangeRates();
+  const exchangeRate = exchangeRates.USD; // 後方互換性
+
   const results = [];
   const errors = [];
-  
+
   for (let i = 0; i < portfolio.length; i++) {
     const asset = portfolio[i];
     console.log(`\n[${i + 1}/${portfolio.length}] ${asset.name}`);
-    
+
     let priceData;
-    
+
     try {
       if (asset.type === 'fund') {
         priceData = await getFundPrice(asset.isinCd, asset.associFundCd);
       } else {
         priceData = await getHistoricalPrices(asset.symbol, 30);
       }
-      
+
       if (priceData) {
         results.push({
           ...asset,
           currentPrice: priceData.price,
           currency: priceData.currency,
-          exchangeRate: priceData.currency === 'USD' ? exchangeRate : null,
+          exchangeRate: priceData.currency !== 'JPY' ? exchangeRates[priceData.currency] : null,
           marketState: priceData.marketState,
           isMarketOpen: priceData.isMarketOpen || false
         });
@@ -843,17 +937,18 @@ export const updateAllPrices = async (portfolio) => {
       results.push(asset);
       errors.push(`${asset.name}: ${error.message}`);
     }
-    
+
     await new Promise(resolve => setTimeout(resolve, 500));
   }
-  
+
   console.log('\n========================================');
   console.log('✓ 価格更新が完了しました');
   console.log('========================================\n');
-  
-  return { 
-    portfolio: results, 
-    exchangeRate,
+
+  return {
+    portfolio: results,
+    exchangeRate,      // 後方互換性
+    exchangeRates,     // 複数通貨対応
     errors: errors.length > 0 ? errors : null
   };
 };

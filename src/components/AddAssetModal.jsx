@@ -21,16 +21,16 @@ export default function AddAssetModal({ onClose, onAdd, addNotification, portfol
   const [validationMessage, setValidationMessage] = useState('');
   const [currentTag, setCurrentTag] = useState('');
   const [selectedExistingAsset, setSelectedExistingAsset] = useState('');
-  
+
   // 既存銘柄のユニークリストを取得
-  const existingAssets = portfolio ? 
+  const existingAssets = portfolio ?
     Array.from(new Map(portfolio.map(asset => [asset.name, asset])).values()) : [];
 
   // 既存銘柄を選択したときの処理
   const handleSelectExistingAsset = (e) => {
     const assetName = e.target.value;
     setSelectedExistingAsset(assetName);
-    
+
     if (assetName) {
       const asset = existingAssets.find(a => a.name === assetName);
       if (asset) {
@@ -52,7 +52,7 @@ export default function AddAssetModal({ onClose, onAdd, addNotification, portfol
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
-    
+
     // シンボルやコードが変更されたら検証状態をリセット
     if (name === 'symbol' || name === 'isinCd' || name === 'associFundCd') {
       setValidationStatus(null);
@@ -118,11 +118,11 @@ export default function AddAssetModal({ onClose, onAdd, addNotification, portfol
         // 投資信託の検証
         const { getFundPrice } = await import('../utils/priceAPI');
         const result = await getFundPrice(formData.isinCd, formData.associFundCd);
-        
+
         if (result && result.price) {
           setValidationStatus('valid');
           setValidationMessage(`✓ 確認完了: ¥${result.price.toLocaleString()} (${result.date})`);
-          
+
           // 価格が取得できた場合、フォームに反映
           if (!formData.purchasePrice) {
             setFormData(prev => ({ ...prev, purchasePrice: result.price.toString() }));
@@ -134,16 +134,16 @@ export default function AddAssetModal({ onClose, onAdd, addNotification, portfol
         // 株式・ETF・仮想通貨の検証
         const { getCurrentPrice } = await import('../utils/priceAPI');
         const result = await getCurrentPrice(formData.symbol);
-        
+
         if (result && result.price) {
           setValidationStatus('valid');
           setValidationMessage(`✓ 確認完了: ${result.currency} ${result.price.toLocaleString()}`);
-          
+
           // 通貨がまだJPYのままの場合のみ上書き
           setFormData(prev => {
             const shouldUpdateCurrency = prev.currency === 'JPY' || prev.type === 'fund';
             return {
-              ...prev, 
+              ...prev,
               currency: shouldUpdateCurrency ? result.currency : prev.currency,
               purchasePrice: !prev.purchasePrice ? result.price.toString() : prev.purchasePrice
             };
@@ -165,17 +165,17 @@ export default function AddAssetModal({ onClose, onAdd, addNotification, portfol
       addNotification('銘柄名を入力してください', 'warning');
       return;
     }
-    
+
     if (!formData.quantity || !formData.purchaseDate) {
       addNotification('必須項目を入力してください（数量、購入日）', 'warning');
       return;
     }
-    
+
     if (formData.type === 'fund' && (!formData.isinCd || !formData.associFundCd)) {
       addNotification('投資信託の場合、ISINコードと投信協会コードが必要です', 'warning');
       return;
     }
-    
+
     if (formData.type !== 'fund' && !formData.symbol) {
       addNotification('ティッカーシンボルを入力してください', 'warning');
       return;
@@ -186,7 +186,7 @@ export default function AddAssetModal({ onClose, onAdd, addNotification, portfol
     const today = new Date();
     const todayJST = new Date(today.toLocaleString('en-US', { timeZone: 'Asia/Tokyo' }));
     todayJST.setHours(0, 0, 0, 0);
-    
+
     if (purchaseDate > todayJST) {
       addNotification('購入日が未来の日付になっています', 'warning');
       return;
@@ -216,15 +216,15 @@ export default function AddAssetModal({ onClose, onAdd, addNotification, portfol
       );
       if (!confirmed) return;
     }
-    
+
     let purchasePrice = formData.purchasePrice ? parseFloat(formData.purchasePrice) : null;
-    
+
     // 🔥 修正: 取得単価のバリデーション
     if (purchasePrice && (isNaN(purchasePrice) || purchasePrice <= 0 || !isFinite(purchasePrice))) {
       addNotification('取得単価は正の数値を入力してください', 'warning');
       return;
     }
-    
+
     if (!purchasePrice) {
       addNotification('購入日の価格を取得しています...', 'info');
       try {
@@ -233,7 +233,7 @@ export default function AddAssetModal({ onClose, onAdd, addNotification, portfol
           formData.type === 'fund' ? formData.isinCd : formData.symbol,
           formData.purchaseDate
         );
-        
+
         if (priceData) {
           purchasePrice = priceData.price;
           addNotification(`購入日の価格を取得しました: ${priceData.currency} ${purchasePrice.toLocaleString()}`, 'success');
@@ -247,10 +247,10 @@ export default function AddAssetModal({ onClose, onAdd, addNotification, portfol
         return;
       }
     }
-    
+
     // 🔥 修正: より安全なID生成
     const { generateId } = await import('../utils/storage');
-    
+
     const newAsset = {
       id: generateId(),
       type: formData.type,
@@ -267,7 +267,7 @@ export default function AddAssetModal({ onClose, onAdd, addNotification, portfol
         associFundCd: formData.associFundCd.trim()
       })
     };
-    
+
     onAdd(newAsset);
     onClose();
   };
@@ -288,7 +288,7 @@ export default function AddAssetModal({ onClose, onAdd, addNotification, portfol
               <label style={{ color: '#4338ca', fontWeight: 'bold' }}>
                 💡 既存銘柄から選択（オプション）
               </label>
-              <select 
+              <select
                 value={selectedExistingAsset}
                 onChange={handleSelectExistingAsset}
                 style={{
@@ -323,12 +323,12 @@ export default function AddAssetModal({ onClose, onAdd, addNotification, portfol
             <>
               <div className="form-group">
                 <label>ティッカーシンボル</label>
-                <input 
-                  type="text" 
-                  name="symbol" 
-                  value={formData.symbol} 
-                  onChange={handleInputChange} 
-                  placeholder="例: 7203.T (日本株), AAPL (米国株), BTC-JPY" 
+                <input
+                  type="text"
+                  name="symbol"
+                  value={formData.symbol}
+                  onChange={handleInputChange}
+                  placeholder="例: 7203.T (日本株), AAPL (米国株), BTC-JPY"
                 />
                 <small className="form-hint">日本株: 7203.T | 米国株: AAPL | 仮想通貨: BTC-JPY</small>
               </div>
@@ -336,7 +336,8 @@ export default function AddAssetModal({ onClose, onAdd, addNotification, portfol
                 <label>通貨</label>
                 <select name="currency" value={formData.currency} onChange={handleInputChange}>
                   <option value="JPY">円 (JPY)</option>
-                  <option value="USD">ドル (USD)</option>
+                  <option value="USD">米ドル (USD)</option>
+                  <option value="HKD">香港ドル (HKD)</option>
                 </select>
               </div>
             </>
@@ -344,22 +345,22 @@ export default function AddAssetModal({ onClose, onAdd, addNotification, portfol
             <>
               <div className="form-group">
                 <label>ISINコード</label>
-                <input 
-                  type="text" 
-                  name="isinCd" 
-                  value={formData.isinCd} 
-                  onChange={handleInputChange} 
-                  placeholder="例: JP90C000RGT5" 
+                <input
+                  type="text"
+                  name="isinCd"
+                  value={formData.isinCd}
+                  onChange={handleInputChange}
+                  placeholder="例: JP90C000RGT5"
                 />
               </div>
               <div className="form-group">
                 <label>投信協会コード</label>
-                <input 
-                  type="text" 
-                  name="associFundCd" 
-                  value={formData.associFundCd} 
-                  onChange={handleInputChange} 
-                  placeholder="例: 9I312252" 
+                <input
+                  type="text"
+                  name="associFundCd"
+                  value={formData.associFundCd}
+                  onChange={handleInputChange}
+                  placeholder="例: 9I312252"
                 />
               </div>
             </>
@@ -367,24 +368,24 @@ export default function AddAssetModal({ onClose, onAdd, addNotification, portfol
 
           {/* 検証ボタンとステータス */}
           <div className="form-group">
-            <button 
-              type="button" 
-              className="btn-secondary" 
+            <button
+              type="button"
+              className="btn-secondary"
               onClick={handleValidate}
               disabled={validationStatus === 'checking'}
               style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
             >
               {validationStatus === 'checking' && <Loader size={16} className="spinning" />}
-              {validationStatus === 'valid' && <CheckCircle size={16} style={{color: '#10b981'}} />}
-              {validationStatus === 'invalid' && <AlertCircle size={16} style={{color: '#ef4444'}} />}
+              {validationStatus === 'valid' && <CheckCircle size={16} style={{ color: '#10b981' }} />}
+              {validationStatus === 'invalid' && <AlertCircle size={16} style={{ color: '#ef4444' }} />}
               価格を確認
             </button>
             {validationMessage && (
-              <small 
-                className="form-hint" 
-                style={{ 
-                  color: validationStatus === 'valid' ? '#10b981' : 
-                         validationStatus === 'invalid' ? '#ef4444' : '#666',
+              <small
+                className="form-hint"
+                style={{
+                  color: validationStatus === 'valid' ? '#10b981' :
+                    validationStatus === 'invalid' ? '#ef4444' : '#666',
                   marginTop: '0.5rem',
                   display: 'block'
                 }}
@@ -396,12 +397,12 @@ export default function AddAssetModal({ onClose, onAdd, addNotification, portfol
 
           <div className="form-group">
             <label>銘柄名</label>
-            <input 
-              type="text" 
-              name="name" 
-              value={formData.name} 
-              onChange={handleInputChange} 
-              placeholder="例: トヨタ自動車, Apple Inc." 
+            <input
+              type="text"
+              name="name"
+              value={formData.name}
+              onChange={handleInputChange}
+              placeholder="例: トヨタ自動車, Apple Inc."
             />
           </div>
 
@@ -409,17 +410,17 @@ export default function AddAssetModal({ onClose, onAdd, addNotification, portfol
           <div className="form-group">
             <label>タグ <small>(分析用。複数設定可能)</small></label>
             <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={currentTag}
                 onChange={(e) => setCurrentTag(e.target.value)}
                 onKeyPress={handleKeyPress}
                 placeholder="例: 金, 半導体, 新興国, etc."
                 style={{ flex: 1 }}
               />
-              <button 
-                type="button" 
-                className="btn-secondary" 
+              <button
+                type="button"
+                className="btn-secondary"
                 onClick={handleAddTag}
                 style={{ whiteSpace: 'nowrap' }}
               >
@@ -429,8 +430,8 @@ export default function AddAssetModal({ onClose, onAdd, addNotification, portfol
             {formData.tags.length > 0 && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.5rem' }}>
                 {formData.tags.map(tag => (
-                  <span 
-                    key={tag} 
+                  <span
+                    key={tag}
                     className="tag-badge"
                     onClick={() => handleRemoveTag(tag)}
                     style={{ cursor: 'pointer' }}
@@ -445,11 +446,11 @@ export default function AddAssetModal({ onClose, onAdd, addNotification, portfol
 
           <div className="form-group">
             <label>購入日 <span className="required">*必須</span></label>
-            <input 
-              type="date" 
-              name="purchaseDate" 
-              value={formData.purchaseDate} 
-              onChange={handleInputChange} 
+            <input
+              type="date"
+              name="purchaseDate"
+              value={formData.purchaseDate}
+              onChange={handleInputChange}
               max={getTodayJST()}
             />
             <small className="form-hint">※未来の日付は選択できません</small>
@@ -458,26 +459,26 @@ export default function AddAssetModal({ onClose, onAdd, addNotification, portfol
           <div className="form-row">
             <div className="form-group">
               <label>数量</label>
-              <input 
-                type="number" 
-                name="quantity" 
-                value={formData.quantity} 
-                onChange={handleInputChange} 
-                step="0.00000001" 
+              <input
+                type="number"
+                name="quantity"
+                value={formData.quantity}
+                onChange={handleInputChange}
+                step="0.00000001"
                 min="0.00000001"
-                placeholder="100" 
+                placeholder="100"
               />
             </div>
             <div className="form-group">
-              <label>取得単価 ({formData.currency === 'USD' ? '$' : '¥'}) <small>※空欄で自動取得</small></label>
-              <input 
-                type="number" 
-                name="purchasePrice" 
-                value={formData.purchasePrice} 
-                onChange={handleInputChange} 
-                step="0.01" 
+              <label>取得単価 ({formData.currency === 'USD' ? '$' : formData.currency === 'HKD' ? 'HK$' : '¥'}) <small>※空欄で自動取得</small></label>
+              <input
+                type="number"
+                name="purchasePrice"
+                value={formData.purchasePrice}
+                onChange={handleInputChange}
+                step="0.01"
                 min="0.01"
-                placeholder="空欄で自動取得" 
+                placeholder="空欄で自動取得"
               />
             </div>
           </div>

@@ -34,6 +34,7 @@ function App() {
   const [selectedSellRecord, setSelectedSellRecord] = useState(null);
   const [selectedDividend, setSelectedDividend] = useState(null);
   const [exchangeRate, setExchangeRate] = useState(150);
+  const [exchangeRates, setExchangeRates] = useState({ USD: 150, HKD: 20 });  // 複数通貨対応
   const [isLoading, setIsLoading] = useState(false);
   const [snapshotData, setSnapshotData] = useState([]);
   const [activeTab, setActiveTab] = useState('overview');
@@ -90,7 +91,7 @@ function App() {
   };
 
   // ========== Dividend Handlers ==========
-  
+
   const handleAddDividend = (dividendData) => {
     const result = addDividend(dividendData);
     if (result) {
@@ -140,10 +141,13 @@ function App() {
       const result = await updateAllPrices(portfolio);
       setPortfolio(result.portfolio);
       setExchangeRate(result.exchangeRate);
+      if (result.exchangeRates) {
+        setExchangeRates(result.exchangeRates);  // 複数通貨対応
+      }
       savePortfolio(result.portfolio);
 
       // 価格更新後、今日のスナップショットを生成
-      const snapshotResult = await generateTodaySnapshot(result.portfolio, result.exchangeRate);
+      const snapshotResult = await generateTodaySnapshot(result.portfolio, result.exchangeRates || result.exchangeRate);
 
       let notificationMessage = '';
       let notificationType = 'success';
@@ -183,7 +187,7 @@ function App() {
     try {
       addNotification('📚 履歴データを取得中...', 'info');
       const historyResult = await rebuildAllHistory(portfolio);
-      
+
       if (historyResult.errors) {
         addNotification(`履歴取得完了（一部エラーあり）\n\nエラー:\n${historyResult.errors.join('\n')}`, 'warning');
       } else {
@@ -192,7 +196,7 @@ function App() {
 
       addNotification('📸 スナップショットを再生成中...', 'info');
       const snapshotResult = await regenerateDailySnapshots(portfolio);
-      
+
       if (snapshotResult.success) {
         addNotification(`✅ 全再構築完了！\n${snapshotResult.snapshotCount}日分のデータを生成しました`, 'success');
         await loadSnapshots();
@@ -268,7 +272,7 @@ function App() {
       const data = exportData();
       const dataStr = JSON.stringify(data, null, 2);
       const dataBlob = new Blob([dataStr], { type: 'application/json' });
-      
+
       const url = URL.createObjectURL(dataBlob);
       const link = document.createElement('a');
       link.href = url;
@@ -277,7 +281,7 @@ function App() {
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      
+
       addNotification('バックアップをダウンロードしました', 'success');
     } catch (error) {
       console.error('バックアップエラー:', error);
@@ -293,7 +297,7 @@ function App() {
     reader.onload = (e) => {
       try {
         const data = JSON.parse(e.target.result);
-        
+
         if (!data.portfolio || !Array.isArray(data.portfolio)) {
           throw new Error('無効なバックアップファイルです');
         }
@@ -310,7 +314,7 @@ function App() {
         }
 
         const success = importData(data);
-        
+
         if (success) {
           const loadedPortfolio = loadPortfolio();
           setPortfolio(loadedPortfolio);
@@ -347,7 +351,7 @@ function App() {
 
   const handleEditPurchase = (purchaseRecord) => {
     const originalAsset = portfolio.find(a => a.id === purchaseRecord.id);
-    
+
     if (originalAsset) {
       setSelectedAsset(originalAsset);
       setIsEditPurchaseModalOpen(true);
@@ -384,7 +388,7 @@ function App() {
 
   // ========== Computed Data ==========
   const activePortfolio = getConsolidatedPortfolio(portfolio);
-  const filteredPortfolio = excludeCrypto 
+  const filteredPortfolio = excludeCrypto
     ? activePortfolio.filter(asset => asset.type !== 'crypto')
     : activePortfolio;
   const tagAnalysis = getTagAnalysis(activePortfolio, exchangeRate);
@@ -453,6 +457,7 @@ function App() {
           <PortfolioSummaryAndTable
             portfolio={activePortfolio}
             exchangeRate={exchangeRate}
+            exchangeRates={exchangeRates}
             snapshotData={snapshotData}
             onEdit={openEditModal}
             onDelete={handleDeleteAsset}
@@ -477,19 +482,19 @@ function App() {
         {/* Asset Allocation */}
         <section className="allocation-section">
           <div className="tabs">
-            <button 
+            <button
               className={activeTab === 'overview' ? 'active' : ''}
               onClick={() => setActiveTab('overview')}
             >
               全体配分
             </button>
-            <button 
+            <button
               className={activeTab === 'allocation' ? 'active' : ''}
               onClick={() => setActiveTab('allocation')}
             >
               資産種別
             </button>
-            <button 
+            <button
               className={activeTab === 'tags' ? 'active' : ''}
               onClick={() => setActiveTab('tags')}
             >
@@ -502,9 +507,9 @@ function App() {
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                   <h2>🍰 全体資産配分</h2>
-                  <label style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
+                  <label style={{
+                    display: 'flex',
+                    alignItems: 'center',
                     gap: '8px',
                     cursor: 'pointer',
                     padding: '8px 16px',
@@ -531,9 +536,9 @@ function App() {
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                   <h2>📊 資産種別配分</h2>
-                  <label style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
+                  <label style={{
+                    display: 'flex',
+                    alignItems: 'center',
                     gap: '8px',
                     cursor: 'pointer',
                     padding: '8px 16px',
@@ -552,8 +557,8 @@ function App() {
                     仮想通貨を除外
                   </label>
                 </div>
-                <AssetAllocationChart 
-                  portfolio={filteredPortfolio} 
+                <AssetAllocationChart
+                  portfolio={filteredPortfolio}
                   exchangeRate={exchangeRate}
                   groupBy="type"
                 />
@@ -563,7 +568,7 @@ function App() {
             {activeTab === 'tags' && (
               <div>
                 <h2>🏷️ タグ別分析</h2>
-                
+
                 {allTags.length > 0 ? (
                   <>
                     <div style={{
@@ -572,9 +577,9 @@ function App() {
                       borderRadius: '10px',
                       marginBottom: '30px'
                     }}>
-                      <div style={{ 
-                        display: 'flex', 
-                        justifyContent: 'space-between', 
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
                         alignItems: 'center',
                         marginBottom: '16px'
                       }}>
@@ -598,7 +603,7 @@ function App() {
                           {selectedTags.length === allTags.length ? '✓ すべて選択中' : 'すべて選択'}
                         </button>
                       </div>
-                      
+
                       <div style={{
                         display: 'flex',
                         flexWrap: 'wrap',
@@ -607,7 +612,7 @@ function App() {
                         {allTags.map(tag => {
                           const isSelected = selectedTags.includes(tag);
                           const tagAssets = getAssetsByTag(activePortfolio, tag);
-                          
+
                           return (
                             <label
                               key={tag}
@@ -643,7 +648,7 @@ function App() {
                           );
                         })}
                       </div>
-                      
+
                       {selectedTags.length > 0 && (
                         <div style={{
                           marginTop: '12px',
@@ -661,26 +666,26 @@ function App() {
                     {selectedTags.length > 0 ? (
                       <>
                         <AssetAllocationChart
-                          portfolio={activePortfolio.filter(asset => 
+                          portfolio={activePortfolio.filter(asset =>
                             asset.tags && asset.tags.some(tag => selectedTags.includes(tag))
                           )}
                           exchangeRate={exchangeRate}
                           groupBy="tags"
                           selectedTags={selectedTags}
                         />
-                        
-                        <div className="tag-details" style={{marginTop: '30px'}}>
+
+                        <div className="tag-details" style={{ marginTop: '30px' }}>
                           <h3>タグ別内訳</h3>
                           {selectedTags.map(tag => {
                             const tagAssets = getAssetsByTag(activePortfolio, tag);
                             if (tagAssets.length === 0) return null;
-                            
+
                             return (
-                              <details key={tag} style={{marginBottom: '15px', padding: '10px', border: '1px solid #ddd', borderRadius: '5px'}}>
-                                <summary style={{cursor: 'pointer', fontWeight: 'bold'}}>
+                              <details key={tag} style={{ marginBottom: '15px', padding: '10px', border: '1px solid #ddd', borderRadius: '5px' }}>
+                                <summary style={{ cursor: 'pointer', fontWeight: 'bold' }}>
                                   🏷️ {tag} ({tagAssets.length}銘柄)
                                 </summary>
-                                <div style={{marginTop: '15px'}}>
+                                <div style={{ marginTop: '15px' }}>
                                   <AssetAllocationChart
                                     portfolio={tagAssets}
                                     exchangeRate={exchangeRate}
@@ -709,7 +714,7 @@ function App() {
                     )}
                   </>
                 ) : (
-                  <p style={{textAlign: 'center', padding: '40px', color: '#666'}}>
+                  <p style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
                     タグが設定された銘柄がありません
                   </p>
                 )}
